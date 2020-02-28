@@ -1,0 +1,71 @@
+---
+title: "Data Overview"
+author: "Matthew Coleman"
+date: "2/12/2020"
+output: pdf_document
+---
+
+Data Overview Write R code to complete the following and include as an appendix in your Rmarkdown file. – Read the dataset(s) in. – Report the dimensions of each. – Summarize the missingness in the data. – Split the data into training, validation (optional), and test sets. Report dimensions. – Using only your training set: * Summarize the response variable using numerical or graphical summaries. * Fit a very basic model to the training set. e.g. a logistic regression with 1 or 2 explanatory v
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+bnb <- read.csv('AB_NYC_2019.csv')
+dims <- dim(bnb)
+
+sprintf('Our dataset has %d observations and %d attributes', dims[1],dims[2])
+```
+
+```{r}
+num_com <- sum(complete.cases(bnb))
+
+per_com <- sum(complete.cases(bnb))/nrow(bnb) * 100
+
+cat(sprintf('there are %d number of complete cases, which amounts to %2f percent of the dataset', 
+            num_com, per_com ))
+```
+
+```{r}
+bnb <- bnb[complete.cases(bnb),]
+set.seed(123)
+
+train.ind <- sample(1:nrow(bnb),nrow(bnb)*.80 )
+
+train <- bnb[train.ind,] 
+test <- bnb[-train.ind,] 
+
+```
+
+
+```{r}
+plot(train$longitude, train$price)
+```
+
+```{r}
+plot(train$latitude, train$price)
+```
+
+```{r}
+hist(train$price)
+```
+
+
+As we can see by the pair plot, there is a serious issue of overplotting, which may require that we reduce the number of observations in the dataset we analyze. We may also need log transformations on some of the variables such as the price. We will dive more in depth with the data cleaning when we begin to work more with the dataset.
+
+
+```{r}
+train <- train %>% mutate(price_greater = ifelse(train$price>median(train$price),1,0))
+```
+
+```{r}
+gfit <- glm(price_greater~longitude + latitude, data = train, family = 'binomial')
+summary(gfit)
+```
+
+
+
+
+
+
