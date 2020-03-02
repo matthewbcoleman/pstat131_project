@@ -1,6 +1,6 @@
 ---
-title: "airbnb_project"
-author: "Matthew Coleman"
+title: "Airbnb Project"
+author: "Matthew Coleman, Austin Mac, Jeff Pittman, and Nick Reyes"
 date: "2/28/2020"
 output: pdf_document
 ---
@@ -8,21 +8,80 @@ output: pdf_document
 ```{r}
 library(tidyverse)
 library(dplyr)
-
-bnb <- read.csv('AB_NYC_2019.csv')
-
-bnb[is.na(bnb$room_type),]
-n_distinct(bnb$neighbourhood_group)
-
-n_distinct(bnb$room_type)
-
-plot(bnb$latitude, bnb$longitude, col = bnb$neighbourhood)
-
-plot(bnb$latitude, bnb$longitude, col = bnb$neighbourhood_group)
+library(randomForest)
 ```
 
+Read in the CSV and check the dimensions of the data.
 ```{r}
-mean_price <- bnb %>% group_by(neighbourhood) %>% summarise(mean_price = mean(price), 
+bnb <- read.csv('AB_NYC_2019.csv')
+
+bnb <- as_tibble(bnb)
+
+dims <- dim(bnb)
+
+sprintf('Our dataset has %d observations and %d attributes', dims[1],dims[2])
+
+```
+
+Train-test split the data
+```{r}
+train.ind <- sample(1:nrow(bnb),size = .8*nrow(bnb))
+
+
+train <- bnb[train.ind,]
+test <- bnb[-train.ind,]
+
+```
+
+The response variable for our analysis is going to be `price`, the price per night of the rental. The main predictor variables we are going to explore in this analyses are: `longitude`, `latitude`, `minimum_nights`, `number_of_reviews`, `reviews_per_month`, `neighbourhood`, `neighbourhood_group`, `room_type`, and `calculated_host_listings_count`.
+
+
+We can get the column names of the columns which contain NA's with the following code:
+```{r}
+colnames(train)[apply(train, 2, anyNA)]
+```
+
+### Need a better description on what reviews per month means
+
+We can see that there are NA reviews in the `reviews_per_month`, the number of reviews per month. We can also see upon visual inspection `last_review`, the date of the last review the host received, also contains empty values. We will not be using last_review in our analysis, so we will not worry about imputing values here. 
+
+We believe the reason there are NA's in the `reviews_per_month` column is because the hosts have 0 reviews overall. We further explore this claim the below:
+
+```{r}
+with(train, sum((is.na(reviews_per_month)) & (number_of_reviews!=0)) )
+```
+We can see there are no cases where the `number_of_reviews` and `reviews_per_month`. As a result, we will impute 0 where `reviews_per_month` is NA.
+
+```{r}
+train[is.na(train$reviews_per_month),'reviews_per_month'] <- 0
+
+sum(is.na(train$reviews_per_month))
+```
+
+# Mention what the room types are in the paper when we describe the variables we are using in the report.
+
+```{r}
+levels(train$room_type)
+
+n_distinct(bnb$neighbourhood)
+
+n_distinct(train$neighbourhood_group)
+
+```
+There are 221 neighborhoods covered in the overall data, but only 5 neighbourhood groups. We will further investigate whether we need to use the neighbourhood, or whether we would like to use the negihbourhood groups for simplicity of our model. 
+
+```{r}
+ggplot(data = train, aes(x = latitude, y = longitude, color = neighbourhood)) + 
+  geom_point() + theme(legend.position="none")
+
+ggplot(data = train, aes(x = latitude, y = longitude, color = neighbourhood_group)) + 
+  geom_point() #+ theme(legend.title = 'Neighbourhood Group')
+
+```
+
+We will determine whether we should use the neigbourhood by seeing if there is a large disparity in mean price by calculating the mean price for the neighbourhood. If there seems to be large disparities within the neighbourhood group for mean pricing, we will attempt to use neighbourhood itself.
+```{r}
+mean_price <- train %>% group_by(neighbourhood) %>% summarise(mean_price = mean(price), 
                                                             latitude = median(latitude), longitude = 
                                                             median(longitude)) 
 
@@ -30,5 +89,11 @@ mean_price <- bnb %>% group_by(neighbourhood) %>% summarise(mean_price = mean(pr
 
 ggplot(data = mean_price, aes(x = latitude, y = longitude, color = mean_price)) + 
   geom_point() + scale_color_gradient(low="blue", high="red")
+```
+It does not seem there are any large disparities in pricing, and all the neighbourhood groups seems to be similar to their nearby neighbours. To reduce the complexity of our model, we will use the neighbourhood group variables.
+
+```{r}
+#rest <- randomForest(price ~ longitude + latitude + number_of_reviews + neighbourhood_group, data = train)
+#summary(rest)
 ```
 
