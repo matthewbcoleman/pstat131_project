@@ -97,3 +97,22 @@ It does not seem there are any large disparities in pricing, and all the neighbo
 #summary(rest)
 ```
 
+# Gender Classification
+```{r}
+# install.packages("gender")
+# install.packages('devtools')
+# install_github("ropensci/genderdata")
+library(gender)
+library(devtools)
+library(genderdata)
+```
+
+```{r}
+# truncate host name to first word
+bnb$host_name <- word(bnb$host_name, 1)
+# classify gender based off of host name
+gender <- distinct(gender(bnb$host_name, method = "ssa"))
+# add gender column to bnb
+bnb <- merge(bnb, gender, by.x = "host_name", by.y = "name", all.x = TRUE)
+```
+
