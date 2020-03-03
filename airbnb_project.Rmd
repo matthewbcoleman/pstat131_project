@@ -126,7 +126,21 @@ g.ID <- sample(1:nrow(bnb), 0.8*nrow(bnb))
 g.train <- bnb[g.ID,]
 g.test <- bnb[-g.ID,]
 
-xtrain <- g.train[,c("id","name")]
+xtrain <- g.train[,c("neighbourhood_group", 
+                     "latitude", 
+                     "longitude", 
+                     "room_type", 
+                     "price", 
+                     "minimum_nights", 
+                     "number_of_reviews", 
+                     "reviews_per_month", 
+                     "calculated_host_listings_count", 
+                     "availability_365")]
+
+# crude conversion from factor to numeric for knn method
+xtrain$neighbourhood_group <- as.numeric(xtrain$neighbourhood_group)
+xtrain$room_type <- as.numeric(xtrain$room_type)
+
 ytrain <- g.train$gender
 
 xtest <- g.test[1:16]
@@ -134,8 +148,11 @@ ytest <- g.test$gender
 ```
 
 ## Predicting Gender with KNN
+TODO: find best k by cross validation
 ```{r}
 pred.ytrain <- knn(train = xtrain, test = xtrain, cl = ytrain, k = 5)
+(conf.matrix <- table(pred = pred.ytrain, obs = ytrain))
+sum(diag(conf.matrix))/sum(conf.matrix)
 ```
 
 
