@@ -9,6 +9,7 @@ output: pdf_document
 library(tidyverse)
 library(dplyr)
 library(randomForest)
+library(class)
 ```
 
 Read in the CSV and check the dimensions of the data.
