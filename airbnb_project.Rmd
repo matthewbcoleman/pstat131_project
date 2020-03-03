@@ -15,7 +15,7 @@ library(class)
 
 Read in the CSV and check the dimensions of the data.
 ```{r}
-bnb <- read.csv('AB_NYC_2019.csv')
+bnb2 <- read.csv('AB_NYC_2019.csv')
 
 bnb <- as_tibble(bnb)
 
