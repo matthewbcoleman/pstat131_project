@@ -109,6 +109,32 @@ test$price_above <- ifelse(test$price> median(test$price),1,0)
 test$price_above <- as.factor(test$price_above)
 ```
 
+```{r}
+#initial glm model
+attach(train)
+glm.fit <- glm(price_above ~ longitude + latitude,
+               data=train, family=binomial)
+summary(glm.fit)
+fit.probs <- predict(glm.fit, test, type="response")
+fit.pred <- rep(0, length(price_above))
+fit.pred[fit.probs>.5]=1
+table(fit.pred,price_above)
+mean(fit.pred!=price_above)
+```
+
+```{r}
+#initial lda model
+lda.fit <- lda(price_above ~ longitude + latitude +
+                 minimum_nights,
+               data=train)
+lda.fit
+
+yhat <- predict(lda.fit)$class
+tr.tbl <- table(obs=train$price_above,pred=yhat)
+tr.tbl
+1-sum(diag(tr.tbl))/sum(tr.tbl)
+```
+
 ### Tree-based Methods
 
 Looking at the latitude and longitude data, we may be able to use a regression tree to determine areas where the price is higher.
