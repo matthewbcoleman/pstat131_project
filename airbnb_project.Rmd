@@ -11,6 +11,7 @@ library(dplyr)
 library(randomForest)
 library(class)
 library(tree)
+library(gbm)
 #comment
 ```
 
@@ -32,7 +33,6 @@ train.ind <- sample(1:nrow(bnb),size = .8*nrow(bnb))
 
 train <- bnb[train.ind,]
 test <- bnb[-train.ind,]
-
 ```
 
 The response variable for our analysis is going to be `price`, the price per night of the rental. The main predictor variables we are going to explore in this analyses are: `longitude`, `latitude`, `minimum_nights`, `number_of_reviews`, `reviews_per_month`, `neighbourhood`, `neighbourhood_group`, `room_type`, and `calculated_host_listings_count`.
@@ -136,7 +136,7 @@ mean(test$price_above !=location.prediction)
 As we can see, the misclassification rate is pretty high. This may not come to as a surprise because the tree is very small, and covers a large amount of data, leading to over-generalization of the data. Choosing an ensemble tree method may be best for analyzing this dataset.
 
 ```{r}
-#rest <- randomForest(price_above ~ longitude + latitude + number_of_reviews + neighbourhood_group, data = train)
+#rest <- randomForest(price_above ~ longitude + latitude + number_of_reviews + neighbourhood_group, data = train, importance = TRUE)
 #importance(rest)
 ```
 
