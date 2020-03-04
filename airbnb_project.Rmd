@@ -151,7 +151,7 @@ library(genderdata)
 library(class)
 ```
 Appending column `gender` to bnb.
-```{r}
+```{r, evaL=FALSE}
 # truncate host name to first word
 bnb$host_name <- word(bnb$host_name, 1)
 # classify gender based off of host name
@@ -164,7 +164,7 @@ bnb <- na.omit(bnb)
 ```
 
 ## Gender Train/Test Split
-```{r}
+```{r, eval=FALSE}
 g.ID <- sample(1:nrow(bnb), 0.8*nrow(bnb))
 g.train <- bnb[g.ID,]
 g.test <- bnb[-g.ID,]
@@ -192,7 +192,7 @@ ytest <- g.test$gender
 
 ## Predicting Gender with KNN
 TODO: find best k by cross validation
-```{r}
+```{r, eval=FALSE}
 pred.ytrain <- knn(train = xtrain, test = xtrain, cl = ytrain, k = 5)
 (conf.matrix <- table(pred = pred.ytrain, obs = ytrain))
 sum(diag(conf.matrix))/sum(conf.matrix)
