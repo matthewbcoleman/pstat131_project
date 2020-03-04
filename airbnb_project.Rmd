@@ -10,6 +10,7 @@ library(tidyverse)
 library(dplyr)
 library(randomForest)
 library(class)
+library(tree)
 #comment
 ```
 
@@ -22,7 +23,6 @@ bnb <- as_tibble(bnb)
 dims <- dim(bnb)
 
 sprintf('Our dataset has %d observations and %d attributes', dims[1],dims[2])
-
 ```
 
 Train-test split the data
@@ -56,7 +56,9 @@ We can see there are no cases where the `number_of_reviews` and `reviews_per_mon
 
 ```{r}
 train[is.na(train$reviews_per_month),'reviews_per_month'] <- 0
+test[is.na(test$reviews_per_month),'reviews_per_month'] <- 0
 
+sum(is.na(train$reviews_per_month))
 sum(is.na(train$reviews_per_month))
 ```
 
@@ -77,7 +79,6 @@ ggplot(data = train, aes(x = latitude, y = longitude, color = neighbourhood)) +
   geom_point() + theme(legend.position="none")
 
 ggplot(data = train, aes(x = latitude, y = longitude, color = neighbourhood_group)) + 
-  geom_point() #+ theme(legend.title = 'Neighbourhood Group')
 
 ```
 
@@ -92,11 +93,51 @@ mean_price <- train %>% group_by(neighbourhood) %>% summarise(mean_price = mean(
 ggplot(data = mean_price, aes(x = latitude, y = longitude, color = mean_price)) + 
   geom_point() + scale_color_gradient(low="blue", high="red")
 ```
-It does not seem there are any large disparities in pricing, and all the neighbourhood groups seems to be similar to their nearby neighbours. To reduce the complexity of our model, we will use the neighbourhood group variables.
+It does not seem there are any large disparities in pricing, and all the neighbourhood groups seems to be similar to their nearby neighbours. To reduce the complexity of our model, we will use the neighbourhood group.
+
+To use a classification of prices, we may want to classify whether a listing will be above the mean *or* median price. We can create this variable by determining whether the price data is skewed. 
 
 ```{r}
-#rest <- randomForest(price ~ longitude + latitude + number_of_reviews + neighbourhood_group, data = train)
-#summary(rest)
+hist(train$price)
+```
+As we can see, the prices are highly skewed, with a very small number of high price observations. Some of our models are robust to outliers, so we do not need to filter the outliers unless necessary. Despite this, we will use a binary variable stating whether a price is above the median the median for classification.
+
+```{r}
+train$price_above <- ifelse(train$price> median(train$price),1,0)
+train$price_above <- as.factor(train$price_above)
+test$price_above <- ifelse(test$price> median(test$price),1,0)
+test$price_above <- as.factor(test$price_above)
+```
+
+### Tree-based Methods
+
+Looking at the latitude and longitude data, we may be able to use a regression tree to determine areas where the price is higher.
+
+```{r}
+loc.tree <- tree(price_above~latitude + longitude, data = train)
+plot(loc.tree, cex = .65)
+text(loc.tree)
+```
+
+As we can see from this output, there does not seem to be much difference. Lets try predictions and find out the missclassification rate.
+
+```{r}
+location.prediction <- predict(loc.tree, test, type = 'class')
+mean(test$price_above !=location.prediction)
+
+#POSSIBLY REMOVE THIS
+#plot(cv.tree(loc.tree))
+
+#prune <- prune.tree(loc.tree, best = 4, newdata = test)
+#plot(prune)
+#text(prune)
+```
+
+As we can see, the misclassification rate is pretty high. This may not come to as a surprise because the tree is very small, and covers a large amount of data, leading to over-generalization of the data. Choosing an ensemble tree method may be best for analyzing this dataset.
+
+```{r}
+#rest <- randomForest(price_above ~ longitude + latitude + number_of_reviews + neighbourhood_group, data = train)
+#importance(rest)
 ```
 
 # Gender Classification
