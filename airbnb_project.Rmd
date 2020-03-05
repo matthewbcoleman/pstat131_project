@@ -134,12 +134,23 @@ test$price_above <- as.factor(test$price_above)
 ```
 
 ```{r}
-#initial glm model
+#initial LR model
+set.seed(123)
 attach(train)
-glm.fit <- glm(price_above ~ longitude + latitude,
-               data=train, family=binomial)
-summary(glm.fit)
-fit.probs <- predict(glm.fit, test, type="response")
+logit.fit <- glm(price_above ~ 
+                 longitude 
+               + latitude
+               + minimum_nights
+               + calculated_host_listings_count
+               + availability_365
+               + reviews_per_month
+               + room_type
+               + neighbourhood_group
+              ,
+               data=train, 
+               family=binomial('logit'))
+
+fit.probs <- predict(logit.fit, test, type="response")
 fit.pred <- rep(0, length(price_above))
 fit.pred[fit.probs>.5]=1
 table(fit.pred,price_above)
@@ -149,12 +160,39 @@ mean(fit.pred!=price_above)
 ```{r}
 #initial lda model
 library(MASS)
-lda.fit <- lda(price_above ~ longitude + latitude +
-                 minimum_nights,
+lda.fit <- lda(price_above ~ 
+                 longitude 
+               + latitude
+               + minimum_nights
+               + calculated_host_listings_count
+               + availability_365
+               + reviews_per_month
+               + room_type
+               + neighbourhood_group
+               + neighbourhood
+               ,
                data=train)
 lda.fit
 
 yhat <- predict(lda.fit)$class
+tr.tbl <- table(obs=train$price_above,pred=yhat)
+tr.tbl
+1-sum(diag(tr.tbl))/sum(tr.tbl)
+```
+
+``` {r}
+qda.fit <- qda(price_above ~ longitude + latitude
+               + minimum_nights
+               + calculated_host_listings_count
+               + availability_365
+               + reviews_per_month
+               + room_type
+               + neighbourhood_group
+               ,
+               data=train)
+qda.fit
+
+yhat <- predict(qda.fit)$class
 tr.tbl <- table(obs=train$price_above,pred=yhat)
 tr.tbl
 1-sum(diag(tr.tbl))/sum(tr.tbl)
