@@ -25,14 +25,27 @@ dims <- dim(bnb)
 
 sprintf('Our dataset has %d observations and %d attributes', dims[1],dims[2])
 ```
+Since observations which have a price of 0 will not be useful to our analyses, and are likely to be representative of a bad data point, we will remove these observations.
+
+```{r}
+bnb <- bnb[(bnb$price!=0),]
+```
+
 
 Train-test split the data
 ```{r}
 train.ind <- sample(1:nrow(bnb),size = .8*nrow(bnb))
+small.ind <- sample(1:nrow(bnb), size = .15*nrow(bnb))
 
 
-train <- bnb[train.ind,]
-test <- bnb[-train.ind,]
+train.big <- bnb[train.ind,]
+test.big <- bnb[-train.ind,]
+
+small <- bnb[small.ind,]
+train.small <- sample(1:nrow(small), size = .8*nrow(small))
+train <- small[train.small,]
+test <- small[-train.small,]
+
 ```
 
 The response variable for our analysis is going to be `price`, the price per night of the rental. The main predictor variables we are going to explore in this analyses are: `longitude`, `latitude`, `minimum_nights`, `number_of_reviews`, `reviews_per_month`, `neighbourhood`, `neighbourhood_group`, `room_type`, and `calculated_host_listings_count`.
@@ -62,6 +75,13 @@ sum(is.na(train$reviews_per_month))
 sum(is.na(train$reviews_per_month))
 ```
 
+We can assess the correlation between numeric features with a correlation heatmap:
+
+```{r}
+
+```
+
+
 # Mention what the room types are in the paper when we describe the variables we are using in the report.
 
 ```{r}
@@ -79,7 +99,7 @@ ggplot(data = train, aes(x = latitude, y = longitude, color = neighbourhood)) +
   geom_point() + theme(legend.position="none")
 
 ggplot(data = train, aes(x = latitude, y = longitude, color = neighbourhood_group)) + 
-
+  geom_point() + theme(legend.position="none")
 ```
 
 We will determine whether we should use the neigbourhood by seeing if there is a large disparity in mean price by calculating the mean price for the neighbourhood. If there seems to be large disparities within the neighbourhood group for mean pricing, we will attempt to use neighbourhood itself.
@@ -124,6 +144,7 @@ mean(fit.pred!=price_above)
 
 ```{r}
 #initial lda model
+library(MASS)
 lda.fit <- lda(price_above ~ longitude + latitude +
                  minimum_nights,
                data=train)
@@ -159,12 +180,56 @@ mean(test$price_above !=location.prediction)
 #text(prune)
 ```
 
+```{r}
+tree.reg <- tree(log(price) ~ latitude + longitude + minimum_nights + number_of_reviews + reviews_per_month +
+                       neighbourhood_group +  room_type + calculated_host_listings_count, data = train)
+reg.prediction <- predict(tree.reg, test)
+
+tree.mspe <- mean((log(test$price)-reg.prediction)^2)
+tree.mspe
+```
+
 As we can see, the misclassification rate is pretty high. This may not come to as a surprise because the tree is very small, and covers a large amount of data, leading to over-generalization of the data. Choosing an ensemble tree method may be best for analyzing this dataset.
 
 ```{r}
-#rest <- randomForest(price_above ~ longitude + latitude + number_of_reviews + neighbourhood_group, data = train, importance = TRUE)
-#importance(rest)
+rf.class <- randomForest(price_above  ~ latitude + longitude + minimum_nights + number_of_reviews + reviews_per_month +
+                       neighbourhood_group +  room_type + calculated_host_listings_count,
+                     data = train, mportance = TRUE)
+
+importance(rest)
+
+rf.class.pred <- predict(rf.class,test)
+rf.missclass <- mean(test$price_above!=rf.class.pred)
+
+sprintf('The misclassification rate for the classification random forest is %f', rf.missclass)
+varImpPlot(rf.class)
+
 ```
+
+```{r}
+rf.reg <- randomForest(log(price)  ~ latitude + longitude + minimum_nights + number_of_reviews + reviews_per_month +
+                       neighbourhood_group +  room_type + calculated_host_listings_count,
+                     data = train, mportance = TRUE)
+
+rf.reg.pred <- predict(rf.reg,test)
+rf.mspe <- mean((log(test$price)-rf.reg.pred)^2)
+
+sprintf('The mean squared prediction error for the regression random forest is %f', rf.mspe)
+rf.reg
+```
+As we can see, using the model with all the relevant predictors has almost half the missclassification rate as the single tree with longitude and latitude.
+
+There still does not seem to be much of an improvement over the tree for the regression fit on the data. We can try to re-evaluate the random forest model through cross validation and seeing if we can select important features.
+
+```{r}
+rf.cv.trainx <- train %>% dplyr::select(latitude, longitude, minimum_nights, number_of_reviews, reviews_per_month,
+                                neighbourhood_group, room_type, calculated_host_listings_count)
+rf.cv.trainy <- log(train$price)
+cv.rf <- rfcv(rf.cv.trainx,rf.cv.trainy, cv.fold = 5)
+plot(cv.rf$n.var, cv.rf$error.cv, type = 'b', xlab = 'Number of Variables in Model', ylab = 'Cross-Validation Error')
+```
+As we can see, the cross validation error is the lowest when we use the most predictors. Despite this, There does not seem to be much of a decrease after there are 4 variables in the model, so we will try to fit a model with 4 variables.
+
 
 # Gender Classification
 ```{r}
