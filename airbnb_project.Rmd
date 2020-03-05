@@ -340,40 +340,71 @@ boost.missclass <- mean(test$price_above!=rf.class.pred)
 
 
 # SVM
+Fitting SVM models off of longitude and latitude. 
 ```{r}
 library(e1071)
 train$price_above <- as.factor(train$price_above)
-# plot(train$latitude, train$longitude, col = as.numeric(train$price_above) + 1)
 
-svmfit <- svm(price_above ~ latitude+longitude, data = train, cost = 10, kernel = "linear", scale = FALSE)
-plot(svmfit, train[,c("price_above", "latitude", "longitude")], symbolPalette = terrain.colors(2))
+plot(rbind(train, test)$latitude, 
+     rbind(train,test)$longitude, 
+     col = rbind(train, test)$price_above, 
+     main = "Price by Location",
+     xlab = "Latitude",
+     ylab = "Longitude")
 ```
 
+
+## Best Linear Kernel SVM
+* Misclass. Rate: 0.3285617
+* Cost Parameter: 0.09
+* Support Vectors: 4598
 ```{r}
-svmpoly <- svm(price_above ~ latitude+longitude, data = train, cost = 10, kernel = "polynomial", scale = FALSE)
-plot(svmpoly, train[,c("price_above", "latitude", "longitude")], symbolPalette = terrain.colors(2))
+# determine approximate best cost parameter
+# tune.linear <- tune(svm, price_above ~ latitude+longitude, data = train, kernel = "linear", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
+# increase precision of cost parameter
+# tune.linear <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "linear", ranges = list(cost = seq(.05, .15, .01)))
+best.linear <- svm(price_above ~ longitude+latitude, data = train, kernel = "linear", cost = 0.09)
+pred.linear <- predict(best.linear, test)
+
+myplotSVM(best.linear, test[,c("price_above", "longitude", "latitude")])
+
+(MSE.linear <-mean((as.numeric(test$price_above) - as.numeric(pred.linear))^2))
+
+# confusion matrix
+(conf.linear <- table(obs = test$price_above, pred = pred.linear))
+(acc <- 1 - sum(diag(conf.linear)/sum(conf.linear)))
 ```
 
+## Best Polynomial Kernel SVM
+* Misclass. Rate: 0.2828903
+* Cost Parameter: 10
+* Degree: 3
+* Support Vectors: 5737
 ```{r}
-svmrad <- svm(price_above ~ latitude+longitude, data = train, cost = 10, kernel = "radial", scale = FALSE)
-plot(svmrad, train[,c("price_above", "latitude", "longitude")], symbolPalette = terrain.colors(2))
+# tune.poly <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "polynomial", ranges = list(cost = c(10, 15, 20)))
+best.poly <- svm(price_above ~ longitude+latitude, data = train, kernal = "polynomial", cost = 10)
+pred.poly <- predict(best.poly, test)
+myplotSVM(best.poly, test[,c("price_above", "longitude", "latitude")])
+(MSE.poly <- mean((as.numeric(test$price_above) - as.numeric(pred.poly))^2))
+
+# confusion matrix
+(conf.poly <- table(obs = test$price_above, pred = pred.poly))
+(acc <- 1 - sum(diag(conf.poly)/sum(conf.poly)))
 ```
 
+## Best Radial Kernel SVM
+* MSE: 0.2815269
+* Cost Parameter: 14
+* Support Vectors: 3615
 ```{r}
-svmrad <- svm(price_above ~ latitude+longitude, data = train, cost = .1, kernel = "radial", scale = FALSE)
-plot(svmrad, train[,c("price_above", "latitude", "longitude")], symbolPalette = terrain.colors(2))
+# tune.rad <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "radial", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
+# tune.rad <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "radial", ranges = list(cost = seq(5, 15, 1)))
+best.rad <- svm(price_above ~ longitude+latitude, data = train, kernel = "radial", cost = 14)
+plot(best.rad, test[,c("price_above", "latitude", "longitude")])
+pred.rad <- predict(best.rad, test)
+(conf.rad <- table(obs=test$price_above, pred=pred.rad))
+(acc <- 1 - sum(diag(conf.rad)/sum(conf.rad)))
 ```
-
-```{r}
-svmrad <- svm(price_above ~ latitude+longitude, data = train, cost = 100, kernel = "radial", scale = FALSE)
-plot(svmrad, train[,c("price_above", "latitude", "longitude")], symbolPalette = terrain.colors(2))
-```
-
-Tuning
-```{r, eval=FALSE}
-tune.out <- tune(svm, price_above ~ latitude+longitude, data = train, kernel = "linear", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
-```
-
 
 # Gender Classification
 ```{r}
