@@ -166,6 +166,42 @@ As we can see, the misclassification rate is pretty high. This may not come to a
 #importance(rest)
 ```
 
+# SVM
+```{r}
+library(e1071)
+train$price_above <- as.factor(train$price_above)
+# plot(train$latitude, train$longitude, col = as.numeric(train$price_above) + 1)
+
+svmfit <- svm(price_above ~ latitude+longitude, data = train, cost = 10, kernel = "linear", scale = FALSE)
+plot(svmfit, train[,c("price_above", "latitude", "longitude")], symbolPalette = terrain.colors(2))
+```
+
+```{r}
+svmpoly <- svm(price_above ~ latitude+longitude, data = train, cost = 10, kernel = "polynomial", scale = FALSE)
+plot(svmpoly, train[,c("price_above", "latitude", "longitude")], symbolPalette = terrain.colors(2))
+```
+
+```{r}
+svmrad <- svm(price_above ~ latitude+longitude, data = train, cost = 10, kernel = "radial", scale = FALSE)
+plot(svmrad, train[,c("price_above", "latitude", "longitude")], symbolPalette = terrain.colors(2))
+```
+
+```{r}
+svmrad <- svm(price_above ~ latitude+longitude, data = train, cost = .1, kernel = "radial", scale = FALSE)
+plot(svmrad, train[,c("price_above", "latitude", "longitude")], symbolPalette = terrain.colors(2))
+```
+
+```{r}
+svmrad <- svm(price_above ~ latitude+longitude, data = train, cost = 100, kernel = "radial", scale = FALSE)
+plot(svmrad, train[,c("price_above", "latitude", "longitude")], symbolPalette = terrain.colors(2))
+```
+
+Tuning
+```{r, eval=FALSE}
+tune.out <- tune(svm, price_above ~ latitude+longitude, data = train, kernel = "linear", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
+```
+
+
 # Gender Classification
 ```{r}
 # install.packages("gender")
