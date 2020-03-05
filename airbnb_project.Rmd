@@ -12,6 +12,7 @@ library(randomForest)
 library(class)
 library(tree)
 library(gbm)
+library(caret)
 #comment
 ```
 
@@ -78,9 +79,12 @@ sum(is.na(train$reviews_per_month))
 We can assess the correlation between numeric features with a correlation heatmap:
 
 ```{r}
-
+num.feat <- train %>% dplyr::select(longitude, latitude, minimum_nights, number_of_reviews, 
+                                    reviews_per_month, calculated_host_listings_count)
+feat.corr <- cor(num.feat)
+corrplot::corrplot(feat.corr)
 ```
-
+As we can see, reviews per month and number of reviews are highly correlated, so we can try to remove one of these variables. We will remove number of reviews.
 
 # Mention what the room types are in the paper when we describe the variables we are using in the report.
 
@@ -161,6 +165,7 @@ tr.tbl
 Looking at the latitude and longitude data, we may be able to use a regression tree to determine areas where the price is higher.
 
 ```{r}
+set.seed(123)
 loc.tree <- tree(price_above~latitude + longitude, data = train)
 plot(loc.tree, cex = .65)
 text(loc.tree)
@@ -169,6 +174,7 @@ text(loc.tree)
 As we can see from this output, there does not seem to be much difference. Lets try predictions and find out the missclassification rate.
 
 ```{r}
+set.seed(123)
 location.prediction <- predict(loc.tree, test, type = 'class')
 mean(test$price_above !=location.prediction)
 
@@ -181,7 +187,8 @@ mean(test$price_above !=location.prediction)
 ```
 
 ```{r}
-tree.reg <- tree(log(price) ~ latitude + longitude + minimum_nights + number_of_reviews + reviews_per_month +
+set.seed(123)
+tree.reg <- tree(log(price) ~ latitude + longitude + minimum_nights + reviews_per_month +
                        neighbourhood_group +  room_type + calculated_host_listings_count, data = train)
 reg.prediction <- predict(tree.reg, test)
 
@@ -192,7 +199,8 @@ tree.mspe
 As we can see, the misclassification rate is pretty high. This may not come to as a surprise because the tree is very small, and covers a large amount of data, leading to over-generalization of the data. Choosing an ensemble tree method may be best for analyzing this dataset.
 
 ```{r}
-rf.class <- randomForest(price_above  ~ latitude + longitude + minimum_nights + number_of_reviews + reviews_per_month +
+set.seed(123)
+rf.class <- randomForest(price_above  ~ latitude + longitude + minimum_nights +  reviews_per_month +
                        neighbourhood_group +  room_type + calculated_host_listings_count,
                      data = train, mportance = TRUE)
 
@@ -206,8 +214,11 @@ varImpPlot(rf.class)
 
 ```
 
+As we can see, using the model with all the relevant predictors has almost half the missclassification rate as the single tree with longitude and latitude.
+
 ```{r}
-rf.reg <- randomForest(log(price)  ~ latitude + longitude + minimum_nights + number_of_reviews + reviews_per_month +
+set.seed(123)
+rf.reg <- randomForest(log(price)  ~latitude + longitude + minimum_nights +  reviews_per_month +
                        neighbourhood_group +  room_type + calculated_host_listings_count,
                      data = train, mportance = TRUE)
 
@@ -215,20 +226,117 @@ rf.reg.pred <- predict(rf.reg,test)
 rf.mspe <- mean((log(test$price)-rf.reg.pred)^2)
 
 sprintf('The mean squared prediction error for the regression random forest is %f', rf.mspe)
-rf.reg
 ```
-As we can see, using the model with all the relevant predictors has almost half the missclassification rate as the single tree with longitude and latitude.
-
 There still does not seem to be much of an improvement over the tree for the regression fit on the data. We can try to re-evaluate the random forest model through cross validation and seeing if we can select important features.
 
 ```{r}
-rf.cv.trainx <- train %>% dplyr::select(latitude, longitude, minimum_nights, number_of_reviews, reviews_per_month,
+varImpPlot(rf.reg)
+```
+Th variable importance plot shows us that `room_type`, `longitude`, `latitude`, and `reviews_per_month` are the most important variables.
+
+```{r}
+set.seed(123)
+rf.cv.trainx <- train %>% dplyr::select(latitude, longitude, minimum_nights, reviews_per_month,
                                 neighbourhood_group, room_type, calculated_host_listings_count)
 rf.cv.trainy <- log(train$price)
 cv.rf <- rfcv(rf.cv.trainx,rf.cv.trainy, cv.fold = 5)
 plot(cv.rf$n.var, cv.rf$error.cv, type = 'b', xlab = 'Number of Variables in Model', ylab = 'Cross-Validation Error')
 ```
 As we can see, the cross validation error is the lowest when we use the most predictors. Despite this, There does not seem to be much of a decrease after there are 4 variables in the model, so we will try to fit a model with 4 variables.
+
+We will try fitting the 4 most important variables from the regression random forest, and seeing whether this model is better, or the same, as out more complex model.
+
+```{r}
+set.seed(123)
+rf.reduced <- randomForest(log(price)  ~ latitude + longitude + reviews_per_month + room_type, data = train, mportance = TRUE)
+
+rf.reg.red <- predict(rf.reduced,test)
+rf.red.mspe <- mean((log(test$price)-rf.reg.red)^2)
+
+sprintf('The mean squared prediction error for the regression random forest is %f', rf.red.mspe)
+```
+By reducing the number of predictors, we were able to slightly increase the MSE, while creating a much simpler model.
+
+# Bagging
+
+Lets try bagging with the smaller subset of variables
+```{r}
+set.seed(123)
+bag.reg <- randomForest(log(price)  ~ latitude + longitude + reviews_per_month +  room_type,
+                     data = train, mtry = 4 , importance = TRUE)
+
+bag.reg.pred <- predict(bag.reg,test)
+bag.mspe <- mean((log(test$price)-bag.reg.pred)^2)
+
+sprintf('The mean squared prediction error for bagging is %f', bag.mspe)
+```
+The prediction error is about the same as it is for a random forest.
+
+# Boosting
+
+```{r}
+boost.mod <- gbm(log(price) ~ latitude + longitude +   reviews_per_month +  room_type, data = train,
+                 n.trees = 1000, cv.folds = 5, distribution = 'gaussian')
+boost.pred <- predict(boost.mod, test, n.trees = 1000)
+
+boost.mspe <- mean((log(test$price)-boost.pred)^2)
+
+sprintf('The mean squared prediction error for bagging is %f', boost.mspe)
+```
+
+As with all our other models, this one is about the same. We can try different values of the shrinkage and see if we can find a best model for cross validation error
+
+```{r}
+lambdas <- seq(0,.5, .01)
+b.mspe.list <- NULL
+
+for(lambda in lambdas){
+  boost.l.mod <- gbm(log(price) ~ latitude + longitude +   reviews_per_month +  room_type, data = train,
+                 n.trees = 1000, shrinkage = lambda, distribution = 'gaussian')
+  boost.l.pred <- predict(boost.l.mod, test, n.trees = 1000)
+
+  b.mspe.list <- append(b.mspe.list,mean((log(test$price)-boost.l.pred)^2))
+}
+plot(lambdas,b.mspe.list, type = 'b')
+```
+There does not seem to be a discernable lambda from the plot.
+
+```{r}
+best.lambda <- lambdas[which.min(b.mspe.list)]
+
+best.boost <- gbm(log(price) ~ latitude + longitude +   reviews_per_month +  room_type, data = train,
+                 n.trees = 1000, distribution = 'gaussian')
+best.boost <- predict(boost.mod, test, n.trees = 1000)
+
+b.boost.mspe <- mean((log(test$price)-best.boost)^2)
+
+sprintf('The mean squared prediction error for bagging with the optimal lambda is is %f', b.boost.mspe)
+```
+The mean squared prediction error has not improved with the best lambda.
+
+```{r}
+tree.err <- NULL
+
+ntrees <- list(500,1000,1500,2000,2500)
+
+for(ntree in ntrees){
+  boost.t.mod <- gbm(log(price) ~ latitude + longitude + reviews_per_month +  room_type, data = train,
+                 n.trees = ntree, shrinkage = best,lambda, distribution = 'gaussian')
+  boost.t.pred <- predict(boost.t.mod, test, n.trees = ntree)
+
+  tree.err <- append(tree.err,mean((log(test$price)-boost.t.pred)^2))
+}
+```
+
+
+```{r}
+class.boost <- gbm(price_above ~ latitude + longitude +   reviews_per_month +  room_type, data = train,
+                 n.trees = 1000,  distribution = 'bernoulli')
+class.boost <- predict(boost.mod, test, n.trees = 1000)
+
+boost.class.pred <- predict(rf.class,test)
+boost.missclass <- mean(test$price_above!=rf.class.pred)
+```
 
 
 # SVM
