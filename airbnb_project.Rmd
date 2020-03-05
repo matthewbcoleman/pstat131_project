@@ -2,7 +2,9 @@
 title: "Airbnb Project"
 author: "Matthew Coleman, Austin Mac, Jeff Pittman, and Nick Reyes"
 date: "2/28/2020"
-output: pdf_document
+output: 
+  pdf_document:
+    number_sections: true
 ---
 
 ```{r}
@@ -15,6 +17,47 @@ library(gbm)
 library(caret)
 #comment
 ```
+# Abstract
+
+# Introduction
+
+# Methods
+
+## Data
+
+The dataset we will be using for our analysis is the dataset [New York City Airbnb Open Data](https://www.kaggle.com/dgomonov/new-york-city-airbnb-open-data) from Kaggle. This dataset contains the listing activity and metrics for Airbnb in New York City, New York during 2019. There are 48895 observations and 16 attributes to the dataset. The main features we are going to use for our analysis include the following:
+
+* Price: Our main response variable. The price, in dollars, of the listing per night. Log-transformed to normalize distribution. 
+* Price Above: Variable created from `price`, `price_above` is a binary variable of signaling whether a listings price is above the median listing price. 1 represents the price being above the median, and 0 represents the price being below the median.
+* Neighbourhood Group: The neighbourhood group to which the listing belongs. There are 5 neighbourhood groups in the dataset.
+* Neighbourhood: The neighbourhood to which a listing belongs. This is a nested version of neigbhourhood group, with 217 unique neighbourhood groups.
+* Latitude: Latitude coordinates of the listing
+* Longitude: Longitude coordinates of the listing
+* Room Type: The listing space type. Three types: *Entire home/apt*, *Private room*, *Shared room*. 
+* Minimum Nights: The mininum amount of nights someone can stay in the listing.
+* Number of reviews: The number of reviews for the host.
+* Reviews per Month: The number of reviews per month for the host. Formula:$\frac{Number\ of\ Reviews}{12}$.
+* Calculated Host Listings Count: The number of listings per host.
+
+## Assumptions. need to do pairplots for all variables
+
+Many of our machine learning methods are very computationally intensive, so we sampled 15% of the entire dataset, and then train-test split the 15% sample into 80% training 20% test dataset. To verify this was a viable practice, we plotted the distribution of our response variable, price, and verified the distribution is the similar to the distribution of the overall dataset. The histogram is very similar, and even contains some of the outliers we can see in the overall dataset, so we assumed our smaller dataset was representative of the population.
+
+## Machine Learning Methods
+
+### Regression Methods
+
+Methods used to predict the price of a listing:
+
+
+
+### Classification Methods
+
+Methods used to predict whether a listings price is above the median:
+
+# Analysis and discussion
+
+# Conclusion
 
 Read in the CSV and check the dimensions of the data.
 ```{r}
@@ -89,11 +132,11 @@ As we can see, reviews per month and number of reviews are highly correlated, so
 # Mention what the room types are in the paper when we describe the variables we are using in the report.
 
 ```{r}
-levels(train$room_type)
+levels(bnb$room_type)
 
 n_distinct(bnb$neighbourhood)
 
-n_distinct(train$neighbourhood_group)
+n_distinct(bnb$neighbourhood_group)
 
 ```
 There are 221 neighborhoods covered in the overall data, but only 5 neighbourhood groups. We will further investigate whether we need to use the neighbourhood, or whether we would like to use the negihbourhood groups for simplicity of our model. 
@@ -169,6 +212,8 @@ set.seed(123)
 loc.tree <- tree(price_above~latitude + longitude, data = train)
 plot(loc.tree, cex = .65)
 text(loc.tree)
+
+tree
 ```
 
 As we can see from this output, there does not seem to be much difference. Lets try predictions and find out the missclassification rate.
@@ -204,7 +249,7 @@ rf.class <- randomForest(price_above  ~ latitude + longitude + minimum_nights + 
                        neighbourhood_group +  room_type + calculated_host_listings_count,
                      data = train, mportance = TRUE)
 
-importance(rest)
+importance(rf.class)
 
 rf.class.pred <- predict(rf.class,test)
 rf.missclass <- mean(test$price_above!=rf.class.pred)
@@ -321,11 +366,12 @@ ntrees <- list(500,1000,1500,2000,2500)
 
 for(ntree in ntrees){
   boost.t.mod <- gbm(log(price) ~ latitude + longitude + reviews_per_month +  room_type, data = train,
-                 n.trees = ntree, shrinkage = best,lambda, distribution = 'gaussian')
+               n.trees = ntree, shrinkage = best.lambda, distribution = 'gaussian')
   boost.t.pred <- predict(boost.t.mod, test, n.trees = ntree)
 
   tree.err <- append(tree.err,mean((log(test$price)-boost.t.pred)^2))
 }
+tree.err
 ```
 
 
@@ -336,6 +382,7 @@ class.boost <- predict(boost.mod, test, n.trees = 1000)
 
 boost.class.pred <- predict(rf.class,test)
 boost.missclass <- mean(test$price_above!=rf.class.pred)
+boost.missclass
 ```
 
 
