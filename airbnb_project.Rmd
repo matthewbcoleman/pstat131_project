@@ -7,19 +7,11 @@ output:
     number_sections: true
 ---
 
-```{r}
-library(tidyverse)
-library(dplyr)
-library(randomForest)
-library(class)
-library(tree)
-library(gbm)
-library(caret)
-#comment
-```
 # Abstract
 
 # Introduction
+
+
 
 # Methods
 
@@ -29,19 +21,25 @@ The dataset we will be using for our analysis is the dataset [New York City Airb
 
 * Price: Our main response variable. The price, in dollars, of the listing per night. Log-transformed to normalize distribution. 
 * Price Above: Variable created from `price`, `price_above` is a binary variable of signaling whether a listings price is above the median listing price. 1 represents the price being above the median, and 0 represents the price being below the median.
-* Neighbourhood Group: The neighbourhood group to which the listing belongs. There are 5 neighbourhood groups in the dataset.
-* Neighbourhood: The neighbourhood to which a listing belongs. This is a nested version of neigbhourhood group, with 217 unique neighbourhood groups.
-* Latitude: Latitude coordinates of the listing
-* Longitude: Longitude coordinates of the listing
+* Neighbourhood: Categorical variable of the neighbourhood to which a listing belongs. This is a nested version of neigbhourhood group, with 221 unique neighbourhood groups.
+* Neighbourhood Group: Factor variable of the neighbourhood group to which the listing belongs. There are 5 neighbourhood groups in the dataset.
+* Latitude: Latitude coordinates of the listing.
+* Longitude: Longitude coordinates of the listing.
 * Room Type: The listing space type. Three types: *Entire home/apt*, *Private room*, *Shared room*. 
 * Minimum Nights: The mininum amount of nights someone can stay in the listing.
 * Number of reviews: The number of reviews for the host.
-* Reviews per Month: The number of reviews per month for the host. Formula:$\frac{Number\ of\ Reviews}{12}$.
+* Reviews per Month: The number of reviews per month for the host. Formula:$\frac{Number\ of\ Reviews}{Months\ Listed}$.
 * Calculated Host Listings Count: The number of listings per host.
 
-## Assumptions. need to do pairplots for all variables
+All atributes were complete with the exception of `last_review`, which has the date of the last review, and `reviews_per_month`. Upon further exploration, the reviews per month feature was NA only when the host had no reviews. This resulted in us imputing 0's for NA values in the reviews per month column. Because the date of last review was unimportant to our analyses, we did not impute values for this column.
+
+### Assumptions.
 
 Many of our machine learning methods are very computationally intensive, so we sampled 15% of the entire dataset, and then train-test split the 15% sample into 80% training 20% test dataset. To verify this was a viable practice, we plotted the distribution of our response variable, price, and verified the distribution is the similar to the distribution of the overall dataset. The histogram is very similar, and even contains some of the outliers we can see in the overall dataset, so we assumed our smaller dataset was representative of the population.
+
+### Sample Sizes
+
+Our overall dataset is 48895. Taking the proposed 15% split on the data left us with an overall dataset of 7332 observations. The 80/20 train-test split left us with 5865 training samples and 1467 test samples.
 
 ## Machine Learning Methods
 
@@ -49,15 +47,70 @@ Many of our machine learning methods are very computationally intensive, so we s
 
 Methods used to predict the price of a listing:
 
+* Ridge Regression:
 
+  * Constraint optimization on the least squares criterion:
+  
+$$\hat{\beta}_{ridge} = \underset{\beta}{argmin}[||Y-XB||^2 + \lambda\sum_{j=1}^p\beta_j^2] $$
+
+* Lasso Regression: 
+
+  * Constraint optimization and model selection on the least squares criterion:
+  
+$$\hat{\beta}_{ridge} = \underset{\beta}{argmin}[\ ||Y-XB||^2 + \lambda\sum_{j=1}^p|\beta_j|\ ]$$
+
+By using these two methods, we can try to reduce our estimates for the linear model by imposing some Bias on our estimates for $\beta$. Another benefit of using Lasso regression is that we can also perform model selection, making a simpler model. For choice of an optimal $\lambda$, we will use cross validation. 
+
+* Tree Methods
+
+  * Individual Trees: To compare the efficacy of ensemble tree methods, we will fit an individual regression tree on longitude and latitude, and then one tree on all variables of interest.
+  
+  * Bagging: We will fit an ensemble tree method which will grow large trees on bootstrapped data, resulting in high variance low bias. All of these trees predictions will be averaged to give the final prediction.
+  
+  * Random Forest: We will create multiple decision trees similar to bagging, but try to decorrelate each of the bootstrap trees through selecting $m=\frac{p}{3}$ variables. 
+  
+  * Boosting: We will fit multiple (weak) trees sequentially, grown on information from the previously grown tree. Final prediction is a weighted prediction of the weak learners.
+  
 
 ### Classification Methods
 
 Methods used to predict whether a listings price is above the median:
 
-# Analysis and discussion
+* Logistic Regression
+* LDA
+* QDA
+
+* Tree Methods
+
+  * Individual Trees: To compare the efficacy of ensemble tree methods, we will fit an individual classification tree on longitude and latitude, and then one tree on all variables of interest.
+  
+  * Bagging: We will fit an ensemble tree method which will grow large trees on bootstrapped data, resulting in high variance low bias. All of these trees predictions will be chosen by majority voting for the final prediction.
+  
+  * Random Forest: We will create multiple decision trees similar to bagging, but try to decorrelate each of the bootstrap trees through selecting $m=\sqrt{p}$ variables. Final predictions will be through majority voting. 
+  
+  * Boosting: We will fit multiple (weak) trees sequentially, grown on information from the previously grown tree. Final prediction is a weighted of the weak learners 
+  
+* SVM
+
+# Analysis and Discussion
+
+
 
 # Conclusion
+
+# Appendix
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(randomForest)
+library(class)
+library(tree)
+library(gbm)
+library(caret)
+library(rpart.plot)
+library(rattle)
+```
 
 Read in the CSV and check the dimensions of the data.
 ```{r}
@@ -123,22 +176,28 @@ We can assess the correlation between numeric features with a correlation heatma
 
 ```{r}
 num.feat <- train %>% dplyr::select(longitude, latitude, minimum_nights, number_of_reviews, 
-                                    reviews_per_month, calculated_host_listings_count)
+                                    reviews_per_month, calculated_host_listings_count, price) 
+num.feat$lprice <- log(num.feat$price)
 feat.corr <- cor(num.feat)
 corrplot::corrplot(feat.corr)
 ```
 As we can see, reviews per month and number of reviews are highly correlated, so we can try to remove one of these variables. We will remove number of reviews.
 
-# Mention what the room types are in the paper when we describe the variables we are using in the report.
+```{r}
+pairs(num.feat)
+```
 
 ```{r}
 levels(bnb$room_type)
+
+levels(bnb$neighbourhood_group)
 
 n_distinct(bnb$neighbourhood)
 
 n_distinct(bnb$neighbourhood_group)
 
 ```
+
 There are 221 neighborhoods covered in the overall data, but only 5 neighbourhood groups. We will further investigate whether we need to use the neighbourhood, or whether we would like to use the negihbourhood groups for simplicity of our model. 
 
 ```{r}
@@ -177,6 +236,19 @@ test$price_above <- as.factor(test$price_above)
 ```
 
 ```{r}
+set.seed(123)
+ols.price <- lm(log(price) ~ latitude + longitude + minimum_nights + reviews_per_month +
+                       neighbourhood_group +  room_type + calculated_host_listings_count, data = train)
+ols.pred <- predict(ols.price, test)
+
+ols.mspe <- mean((log(test$price)-ols.pred)^2)
+ols.mspe
+
+summary()
+```
+
+
+```{r}
 #initial LR model
 set.seed(123)
 attach(train)
@@ -212,7 +284,6 @@ lda.fit <- lda(price_above ~
                + reviews_per_month
                + room_type
                + neighbourhood_group
-               + neighbourhood
                ,
                data=train)
 lda.fit
@@ -247,13 +318,11 @@ Looking at the latitude and longitude data, we may be able to use a regression t
 
 ```{r}
 set.seed(123)
-loc.tree <- tree(price_above~latitude + longitude, data = train)
-plot(loc.tree, cex = .65)
-text(loc.tree)
+loc.tree <- rpart(price_above~latitude + longitude + minimum_nights + reviews_per_month +
+                       neighbourhood_group +  room_type + calculated_host_listings_count, data = train)
 
-tree
+fancyRpartPlot(loc.tree, digits = 6)
 ```
-
 As we can see from this output, there does not seem to be much difference. Lets try predictions and find out the missclassification rate.
 
 ```{r}
@@ -261,7 +330,7 @@ set.seed(123)
 location.prediction <- predict(loc.tree, test, type = 'class')
 mean(test$price_above !=location.prediction)
 
-#POSSIBLY REMOVE THIS
+#Pruning tree did not improve tree
 #plot(cv.tree(loc.tree))
 
 #prune <- prune.tree(loc.tree, best = 4, newdata = test)
@@ -271,8 +340,13 @@ mean(test$price_above !=location.prediction)
 
 ```{r}
 set.seed(123)
-tree.reg <- tree(log(price) ~ latitude + longitude + minimum_nights + reviews_per_month +
+tree.reg <- rpart(log(price) ~ latitude + longitude + minimum_nights + reviews_per_month +
                        neighbourhood_group +  room_type + calculated_host_listings_count, data = train)
+
+fancyRpartPlot(tree.reg, digits = 6)
+```
+
+```{r}
 reg.prediction <- predict(tree.reg, test)
 
 tree.mspe <- mean((log(test$price)-reg.prediction)^2)
@@ -423,6 +497,12 @@ boost.missclass <- mean(test$price_above!=rf.class.pred)
 boost.missclass
 ```
 
+All The tables for tree methods put together.
+
+```{r, echo = FALSE}
+methods <- c('Tree','Bagging','Boosting')
+```
+
 
 # SVM
 Fitting SVM models off of longitude and latitude. 
@@ -451,7 +531,7 @@ plot(rbind(train, test)$latitude,
 best.linear <- svm(price_above ~ longitude+latitude, data = train, kernel = "linear", cost = 0.09)
 pred.linear <- predict(best.linear, test)
 
-myplotSVM(best.linear, test[,c("price_above", "longitude", "latitude")])
+plot(best.linear, test[,c("price_above", "longitude", "latitude")])
 
 (MSE.linear <-mean((as.numeric(test$price_above) - as.numeric(pred.linear))^2))
 
@@ -469,7 +549,7 @@ myplotSVM(best.linear, test[,c("price_above", "longitude", "latitude")])
 # tune.poly <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "polynomial", ranges = list(cost = c(10, 15, 20)))
 best.poly <- svm(price_above ~ longitude+latitude, data = train, kernal = "polynomial", cost = 10)
 pred.poly <- predict(best.poly, test)
-myplotSVM(best.poly, test[,c("price_above", "longitude", "latitude")])
+plot(best.poly, test[,c("price_above", "longitude", "latitude")])
 (MSE.poly <- mean((as.numeric(test$price_above) - as.numeric(pred.poly))^2))
 
 # confusion matrix
