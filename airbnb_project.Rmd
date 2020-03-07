@@ -5,7 +5,102 @@ date: "2/28/2020"
 output: 
   pdf_document:
     number_sections: true
+    fig_caption: yes
+    includes:  
+      in_header: preamble-latex.tex
 ---
+
+```{r library, echo = F}
+# Anything below here before the abstract has to be here so we can run code in the analysis and have output
+library(tidyverse)
+library(dplyr)
+library(randomForest)
+library(class)
+library(tree)
+library(gbm)
+library(caret)
+library(rpart.plot)
+library(rattle)
+library(knitr)
+library(fastAdaboost)
+library(ggpubr)
+```
+
+```{r read_data, echo = F}
+bnb <- read.csv('AB_NYC_2019.csv')
+
+bnb <- as_tibble(bnb)
+
+dims <- dim(bnb)
+
+sprintf('Our dataset has %d observations and %d attributes', dims[1],dims[2])
+```
+
+```{r remove_zero, echo = F}
+bnb <- bnb[(bnb$price!=0),]
+```
+
+```{r train-test, echo = F}
+set.seed(123)
+train.ind <- sample(1:nrow(bnb),size = .8*nrow(bnb))
+small.ind <- sample(1:nrow(bnb), size = .15*nrow(bnb))
+
+
+train.big <- bnb[train.ind,]
+test.big <- bnb[-train.ind,]
+
+small <- bnb[small.ind,]
+train.small <- sample(1:nrow(small), size = .8*nrow(small))
+train <- small[train.small,]
+test <- small[-train.small,]
+
+```
+
+```{r na_cols, echo = F}
+colnames(train)[apply(train, 2, anyNA)]
+```
+
+```{r sum_zero, echo = F}
+with(train, sum((is.na(reviews_per_month)) & (number_of_reviews!=0)) )
+```
+
+```{r set_na, echo = F}
+train[is.na(train$reviews_per_month),'reviews_per_month'] <- 0
+test[is.na(test$reviews_per_month),'reviews_per_month'] <- 0
+
+sum(is.na(train$reviews_per_month))
+sum(is.na(train$reviews_per_month))
+```
+
+```{r price_above, echo = F}
+train$price_above <- ifelse(train$price> median(train$price),1,0)
+#train$price_above <- as.factor(train$price_above)
+test$price_above <- ifelse(test$price> median(test$price),1,0)
+#test$price_above <- as.factor(test$price_above)
+```
+
+```{r, echo = F}
+num.feat <- train %>% dplyr::select(longitude, latitude, minimum_nights, number_of_reviews, 
+                                    reviews_per_month, calculated_host_listings_count, price) 
+num.feat$lprice <- log(num.feat$price)
+feat.corr <- cor(num.feat)
+corrplot::corrplot(feat.corr, main = 'Feature Correlations')
+```
+
+```{r pairplot, echo = F}
+pairs(num.feat)
+```
+
+```{r neighbourhood, echo = F}
+levels(bnb$room_type)
+
+levels(bnb$neighbourhood_group)
+
+n_distinct(bnb$neighbourhood)
+
+n_distinct(bnb$neighbourhood_group)
+
+```
 
 # Abstract
 
@@ -20,9 +115,41 @@ output:
 The dataset we will be using for our analysis is the dataset [New York City Airbnb Open Data](https://www.kaggle.com/dgomonov/new-york-city-airbnb-open-data) from Kaggle. This dataset contains the listing activity and metrics for Airbnb in New York City, New York during 2019. There are 48895 observations and 16 attributes to the dataset. The main features we are going to use for our analysis include the following:
 
 * Price: Our main response variable. The price, in dollars, of the listing per night. Log-transformed to normalize distribution. 
+
+```{r, echo = FALSE, fig.cap = 'Log-transformed Price'}
+hist(log(train$price), main='Histogram of log(Price)', xlab = 'log(Price)')
+```
+
 * Price Above: Variable created from `price`, `price_above` is a binary variable of signaling whether a listings price is above the median listing price. 1 represents the price being above the median, and 0 represents the price being below the median.
 * Neighbourhood: Categorical variable of the neighbourhood to which a listing belongs. This is a nested version of neigbhourhood group, with 221 unique neighbourhood groups.
 * Neighbourhood Group: Factor variable of the neighbourhood group to which the listing belongs. There are 5 neighbourhood groups in the dataset.
+  * Plots of both neigbourhood and neighbourhood group are shown below: 
+  
+    ```{r location, fig.width = 6.5, echo = F, fig.cap = 'Neighbourhood and neighbourhood group}
+n <- ggplot(data = train, aes(x = latitude, y = longitude, color = neighbourhood)) + 
+  geom_point() + theme(legend.position="none") + xlab('Latitude') + ylab('Longitude') +
+  ggtitle('New York City Airbnb Listing Neighbourhood')
+
+ng <- ggplot(data = train, aes(x = latitude, y = longitude, color = neighbourhood_group)) + 
+  geom_point() + theme(legend.position="none") + xlab('Latitude') + ylab('Longitude') +
+  ggtitle('New York City Airbnb Listing Neighbourhood Groups')
+
+ggarrange(n, ng, nrow = 1, ncol = 2)
+```
+
+
+```{r mean_price, echo = F, fig.cap = 'Justification for using neighbourhood group'}
+mean_price <- train %>% group_by(neighbourhood) %>% summarise(mean_price = mean(price), 
+                                                            latitude = median(latitude), longitude = 
+                                                            median(longitude)) 
+
+#plot(mean_price$latitude, mean_price$longitude, col = mean_price$mean_price)
+
+ggplot(data = mean_price, aes(x = latitude, y = longitude, color = mean_price)) + 
+  geom_point() + scale_color_gradient(low="blue", high="red", name = 'Mean Price (USD)') + xlab('Latitude') + 
+  ylab('Longitude') + ggtitle('Mean Price by Neighborhood')
+```
+
 * Latitude: Latitude coordinates of the listing.
 * Longitude: Longitude coordinates of the listing.
 * Room Type: The listing space type. Three types: *Entire home/apt*, *Private room*, *Shared room*. 
@@ -36,6 +163,24 @@ All atributes were complete with the exception of `last_review`, which has the d
 ### Assumptions.
 
 Many of our machine learning methods are very computationally intensive, so we sampled 15% of the entire dataset, and then train-test split the 15% sample into 80% training 20% test dataset. To verify this was a viable practice, we plotted the distribution of our response variable, price, and verified the distribution is the similar to the distribution of the overall dataset. The histogram is very similar, and even contains some of the outliers we can see in the overall dataset, so we assumed our smaller dataset was representative of the population.
+
+```{r price_hist, echo = F, fig.cap= 'Training Data Histogram'}
+par(mfrow = c(1,2))
+hist(bnb$price, main='Histogram of Overall Price', xlab = 'Price (USD)')
+hist(train$price, main='Histogram of Training Price', xlab = 'Price (USD)')
+```
+
+We assessed the correlation between our variables with a correlation heatmap:
+
+```{r corr_plot, echo = F}
+num.feat <- train %>% dplyr::select(longitude, latitude, minimum_nights, number_of_reviews, 
+                                    reviews_per_month, calculated_host_listings_count, price) 
+num.feat$lprice <- log(num.feat$price)
+feat.corr <- cor(num.feat)
+corrplot::corrplot(feat.corr, main = 'Feature Correlations')
+```
+
+Reviews per month and number of reviews were highly correlated, so we decided to remove number of reviews to account for collinearity.
 
 ### Sample Sizes
 
@@ -94,147 +239,6 @@ Methods used to predict whether a listings price is above the median:
 
 # Analysis and Discussion
 
-
-
-# Conclusion
-
-# Appendix
-
-```{r}
-library(tidyverse)
-library(dplyr)
-library(randomForest)
-library(class)
-library(tree)
-library(gbm)
-library(caret)
-library(rpart.plot)
-library(rattle)
-```
-
-Read in the CSV and check the dimensions of the data.
-```{r}
-bnb <- read.csv('AB_NYC_2019.csv')
-
-bnb <- as_tibble(bnb)
-
-dims <- dim(bnb)
-
-sprintf('Our dataset has %d observations and %d attributes', dims[1],dims[2])
-```
-Since observations which have a price of 0 will not be useful to our analyses, and are likely to be representative of a bad data point, we will remove these observations.
-
-```{r}
-bnb <- bnb[(bnb$price!=0),]
-```
-
-
-Train-test split the data
-```{r}
-train.ind <- sample(1:nrow(bnb),size = .8*nrow(bnb))
-small.ind <- sample(1:nrow(bnb), size = .15*nrow(bnb))
-
-
-train.big <- bnb[train.ind,]
-test.big <- bnb[-train.ind,]
-
-small <- bnb[small.ind,]
-train.small <- sample(1:nrow(small), size = .8*nrow(small))
-train <- small[train.small,]
-test <- small[-train.small,]
-
-```
-
-The response variable for our analysis is going to be `price`, the price per night of the rental. The main predictor variables we are going to explore in this analyses are: `longitude`, `latitude`, `minimum_nights`, `number_of_reviews`, `reviews_per_month`, `neighbourhood`, `neighbourhood_group`, `room_type`, and `calculated_host_listings_count`.
-
-
-We can get the column names of the columns which contain NA's with the following code:
-```{r}
-colnames(train)[apply(train, 2, anyNA)]
-```
-
-### Need a better description on what reviews per month means
-
-We can see that there are NA reviews in the `reviews_per_month`, the number of reviews per month. We can also see upon visual inspection `last_review`, the date of the last review the host received, also contains empty values. We will not be using last_review in our analysis, so we will not worry about imputing values here. 
-
-We believe the reason there are NA's in the `reviews_per_month` column is because the hosts have 0 reviews overall. We further explore this claim the below:
-
-```{r}
-with(train, sum((is.na(reviews_per_month)) & (number_of_reviews!=0)) )
-```
-We can see there are no cases where the `number_of_reviews` and `reviews_per_month`. As a result, we will impute 0 where `reviews_per_month` is NA.
-
-```{r}
-train[is.na(train$reviews_per_month),'reviews_per_month'] <- 0
-test[is.na(test$reviews_per_month),'reviews_per_month'] <- 0
-
-sum(is.na(train$reviews_per_month))
-sum(is.na(train$reviews_per_month))
-```
-
-We can assess the correlation between numeric features with a correlation heatmap:
-
-```{r}
-num.feat <- train %>% dplyr::select(longitude, latitude, minimum_nights, number_of_reviews, 
-                                    reviews_per_month, calculated_host_listings_count, price) 
-num.feat$lprice <- log(num.feat$price)
-feat.corr <- cor(num.feat)
-corrplot::corrplot(feat.corr)
-```
-As we can see, reviews per month and number of reviews are highly correlated, so we can try to remove one of these variables. We will remove number of reviews.
-
-```{r}
-pairs(num.feat)
-```
-
-```{r}
-levels(bnb$room_type)
-
-levels(bnb$neighbourhood_group)
-
-n_distinct(bnb$neighbourhood)
-
-n_distinct(bnb$neighbourhood_group)
-
-```
-
-There are 221 neighborhoods covered in the overall data, but only 5 neighbourhood groups. We will further investigate whether we need to use the neighbourhood, or whether we would like to use the negihbourhood groups for simplicity of our model. 
-
-```{r}
-ggplot(data = train, aes(x = latitude, y = longitude, color = neighbourhood)) + 
-  geom_point() + theme(legend.position="none")
-
-ggplot(data = train, aes(x = latitude, y = longitude, color = neighbourhood_group)) + 
-  geom_point() + theme(legend.position="none")
-```
-
-We will determine whether we should use the neigbourhood by seeing if there is a large disparity in mean price by calculating the mean price for the neighbourhood. If there seems to be large disparities within the neighbourhood group for mean pricing, we will attempt to use neighbourhood itself.
-```{r}
-mean_price <- train %>% group_by(neighbourhood) %>% summarise(mean_price = mean(price), 
-                                                            latitude = median(latitude), longitude = 
-                                                            median(longitude)) 
-
-#plot(mean_price$latitude, mean_price$longitude, col = mean_price$mean_price)
-
-ggplot(data = mean_price, aes(x = latitude, y = longitude, color = mean_price)) + 
-  geom_point() + scale_color_gradient(low="blue", high="red")
-```
-It does not seem there are any large disparities in pricing, and all the neighbourhood groups seems to be similar to their nearby neighbours. To reduce the complexity of our model, we will use the neighbourhood group.
-
-To use a classification of prices, we may want to classify whether a listing will be above the mean *or* median price. We can create this variable by determining whether the price data is skewed. 
-
-```{r}
-hist(train$price)
-```
-As we can see, the prices are highly skewed, with a very small number of high price observations. Some of our models are robust to outliers, so we do not need to filter the outliers unless necessary. Despite this, we will use a binary variable stating whether a price is above the median the median for classification.
-
-```{r}
-train$price_above <- ifelse(train$price> median(train$price),1,0)
-train$price_above <- as.factor(train$price_above)
-test$price_above <- ifelse(test$price> median(test$price),1,0)
-test$price_above <- as.factor(test$price_above)
-```
-
 ```{r}
 set.seed(123)
 ols.price <- lm(log(price) ~ latitude + longitude + minimum_nights + reviews_per_month +
@@ -244,7 +248,6 @@ ols.pred <- predict(ols.price, test)
 ols.mspe <- mean((log(test$price)-ols.pred)^2)
 ols.mspe
 
-summary()
 ```
 
 
@@ -318,17 +321,18 @@ Looking at the latitude and longitude data, we may be able to use a regression t
 
 ```{r}
 set.seed(123)
-loc.tree <- rpart(price_above~latitude + longitude + minimum_nights + reviews_per_month +
+class.tree <- rpart(as.factor(price_above)~latitude + longitude + minimum_nights + reviews_per_month +
                        neighbourhood_group +  room_type + calculated_host_listings_count, data = train)
 
-fancyRpartPlot(loc.tree, digits = 6)
+fancyRpartPlot(class.tree, digits = 6, main = 'Classification Tree for Price Above Median', sub = '')
 ```
+
 As we can see from this output, there does not seem to be much difference. Lets try predictions and find out the missclassification rate.
 
 ```{r}
 set.seed(123)
-location.prediction <- predict(loc.tree, test, type = 'class')
-mean(test$price_above !=location.prediction)
+tree.class.prediction <- predict(class.tree, test, type = 'class')
+tree.class.missclass <- mean(test$price_above !=tree.class.prediction)
 
 #Pruning tree did not improve tree
 #plot(cv.tree(loc.tree))
@@ -343,10 +347,11 @@ set.seed(123)
 tree.reg <- rpart(log(price) ~ latitude + longitude + minimum_nights + reviews_per_month +
                        neighbourhood_group +  room_type + calculated_host_listings_count, data = train)
 
-fancyRpartPlot(tree.reg, digits = 6)
+fancyRpartPlot(tree.reg, digits = 6,  sub = '')
 ```
 
 ```{r}
+set.seed(123)
 reg.prediction <- predict(tree.reg, test)
 
 tree.mspe <- mean((log(test$price)-reg.prediction)^2)
@@ -361,7 +366,7 @@ rf.class <- randomForest(price_above  ~ latitude + longitude + minimum_nights + 
                        neighbourhood_group +  room_type + calculated_host_listings_count,
                      data = train, mportance = TRUE)
 
-importance(rf.class)
+randomForest::importance(rf.class)
 
 rf.class.pred <- predict(rf.class,test)
 rf.missclass <- mean(test$price_above!=rf.class.pred)
@@ -375,7 +380,7 @@ As we can see, using the model with all the relevant predictors has almost half 
 
 ```{r}
 set.seed(123)
-rf.reg <- randomForest(log(price)  ~latitude + longitude + minimum_nights +  reviews_per_month +
+rf.reg <- randomForest(log(price) ~ latitude + longitude + minimum_nights +  reviews_per_month +
                        neighbourhood_group +  room_type + calculated_host_listings_count,
                      data = train, mportance = TRUE)
 
@@ -389,15 +394,16 @@ There still does not seem to be much of an improvement over the tree for the reg
 ```{r}
 varImpPlot(rf.reg)
 ```
-Th variable importance plot shows us that `room_type`, `longitude`, `latitude`, and `reviews_per_month` are the most important variables.
+
+The variable importance plot shows us that `room_type`, `longitude`, `latitude`, and `reviews_per_month` are the most important variables.
 
 ```{r}
-set.seed(123)
-rf.cv.trainx <- train %>% dplyr::select(latitude, longitude, minimum_nights, reviews_per_month,
-                                neighbourhood_group, room_type, calculated_host_listings_count)
-rf.cv.trainy <- log(train$price)
-cv.rf <- rfcv(rf.cv.trainx,rf.cv.trainy, cv.fold = 5)
-plot(cv.rf$n.var, cv.rf$error.cv, type = 'b', xlab = 'Number of Variables in Model', ylab = 'Cross-Validation Error')
+# set.seed(123)
+# rf.cv.trainx <- train %>% dplyr::select(latitude, longitude, minimum_nights, reviews_per_month,
+#                                 neighbourhood_group, room_type, calculated_host_listings_count)
+# rf.cv.trainy <- log(train$price)
+# cv.rf <- rfcv(rf.cv.trainx,rf.cv.trainy, cv.fold = 5)
+# plot(cv.rf$n.var, cv.rf$error.cv, type = 'b', xlab = 'Number of Variables in Model', ylab = 'Cross-Validation Error')
 ```
 As we can see, the cross validation error is the lowest when we use the most predictors. Despite this, There does not seem to be much of a decrease after there are 4 variables in the model, so we will try to fit a model with 4 variables.
 
@@ -414,6 +420,17 @@ sprintf('The mean squared prediction error for the regression random forest is %
 ```
 By reducing the number of predictors, we were able to slightly increase the MSE, while creating a much simpler model.
 
+```{r}
+set.seed(123)
+rf.red.class <- randomForest(log(price)  ~latitude + longitude +  reviews_per_month +
+                       room_type , data = train, mportance = TRUE)
+
+rfr.class.pred <- predict(rf.reg,test)
+rfr.missclass <- mean(test$price_above!=rf.class.pred)
+
+sprintf('The misclassification rate for the classification random forest is %f', rfr.missclass)
+```
+
 # Bagging
 
 Lets try bagging with the smaller subset of variables
@@ -429,9 +446,21 @@ sprintf('The mean squared prediction error for bagging is %f', bag.mspe)
 ```
 The prediction error is about the same as it is for a random forest.
 
-# Boosting
+```{r}
+set.seed(123)
+bag.class <- randomForest(price_above ~ latitude + longitude + reviews_per_month +  room_type,
+                     data = train, mtry = 4 , importance = TRUE)
+
+bag.class.pred <- predict(bag.class,test)
+bag.missclass <- mean(test$price_above!=bag.class.pred)
+
+sprintf('The misclassification rate for the classification random forest is %f', bag.missclass)
+```
+
+## Boosting
 
 ```{r}
+set.seed(123)
 boost.mod <- gbm(log(price) ~ latitude + longitude +   reviews_per_month +  room_type, data = train,
                  n.trees = 1000, cv.folds = 5, distribution = 'gaussian')
 boost.pred <- predict(boost.mod, test, n.trees = 1000)
@@ -444,6 +473,7 @@ sprintf('The mean squared prediction error for bagging is %f', boost.mspe)
 As with all our other models, this one is about the same. We can try different values of the shrinkage and see if we can find a best model for cross validation error
 
 ```{r}
+set.seed(123)
 lambdas <- seq(0,.5, .01)
 b.mspe.list <- NULL
 
@@ -454,11 +484,15 @@ for(lambda in lambdas){
 
   b.mspe.list <- append(b.mspe.list,mean((log(test$price)-boost.l.pred)^2))
 }
-plot(lambdas,b.mspe.list, type = 'b')
+plot(lambdas,b.mspe.list, type = 'b', ylab = 'Boosted MSPE', xlab = 'Lambda', 
+     main = 'MSPE vs. Lambdas')
 ```
+
+
 There does not seem to be a discernable lambda from the plot.
 
 ```{r}
+set.seed(123)
 best.lambda <- lambdas[which.min(b.mspe.list)]
 
 best.boost <- gbm(log(price) ~ latitude + longitude +   reviews_per_month +  room_type, data = train,
@@ -477,30 +511,57 @@ tree.err <- NULL
 ntrees <- list(500,1000,1500,2000,2500)
 
 for(ntree in ntrees){
-  boost.t.mod <- gbm(log(price) ~ latitude + longitude + reviews_per_month +  room_type, data = train,
+  boost.t.mod <- gbm(log(price) ~ latitude + longitude + 
+                       reviews_per_month +  room_type, data = train,
                n.trees = ntree, shrinkage = best.lambda, distribution = 'gaussian')
   boost.t.pred <- predict(boost.t.mod, test, n.trees = ntree)
 
   tree.err <- append(tree.err,mean((log(test$price)-boost.t.pred)^2))
 }
-tree.err
+#tree.err
+
+plot(ntrees, tree.err, type = 'b', ylab = 'Boosted MSPE', xlab = 'Trees', 
+     main = 'MSPE vs. Number of Trees')
 ```
 
+```{r}
+set.seed(123)
+lambdas <- seq(0,.5, .01)
+b.miss.list <- NULL
+
+for(lambda in lambdas){
+  boost.m.mod <- gbm(price_above ~ latitude + longitude +   
+                       reviews_per_month +  room_type, data = train,
+                     n.trees = 1000, shrinkage = lambda, distribution = 'bernoulli')
+  boost.m.pred <- predict(boost.m.mod, test, n.trees = 1000)
+
+  b.miss.list <- append(b.miss.list, mean(test$price_above!=boost.m.pred))
+}
+plot(lambdas, b.miss.list, type = 'b', ylab = 'Boosted MSPE', xlab = 'Lambda', 
+     main = 'Missclass. vs. Lambdas')
+```
 
 ```{r}
-class.boost <- gbm(price_above ~ latitude + longitude +   reviews_per_month +  room_type, data = train,
-                 n.trees = 1000,  distribution = 'bernoulli')
-class.boost <- predict(boost.mod, test, n.trees = 1000)
+set.seed(123)
+class.boost <- gbm(price_above ~ latitude + longitude +   
+                     reviews_per_month +  room_type, data = train, n.trees = 1000)
+boost.class.pred<- predict(class.boost, test, n.trees = 1000)
 
-boost.class.pred <- predict(rf.class,test)
-boost.missclass <- mean(test$price_above!=rf.class.pred)
+boost.missclass <- mean(test$price_above!=boost.class.pred)
 boost.missclass
 ```
 
 All The tables for tree methods put together.
 
-```{r, echo = FALSE}
-methods <- c('Tree','Bagging','Boosting')
+```{r tree_tables, echo = FALSE,  fig.cap = ""}
+Methods <- c('Tree','Bagging','Boosting', 'Random Forest', 'Reduced Random Forest')
+MSPE <- round(c(tree.mspe, bag.mspe, boost.mspe, rf.mspe, rf.red.mspe),6)
+Missclassification <- round(c(tree.class.missclass, bag.missclass ,boost.missclass, rf.missclass, rfr.missclass), 6)
+
+mspe.tab  <- cbind(Methods,MSPE)
+missclass.tab <- cbind(Methods,Missclassification)
+
+kable(list(`MSPE` = mspe.tab, Missclassification  = missclass.tab))
 ```
 
 
@@ -620,56 +681,6 @@ pred.rad <- predict(best.rad, test)
 (acc <- 1 - sum(diag(conf.rad)/sum(conf.rad)))
 ```
 
-# Gender Classification
-```{r}
-# install.packages("gender")
-# install.packages('devtools')
-# install_github("ropensci/genderdata")
-library(gender)
-library(devtools)
-library(genderdata)
-library(class)
-```
-Appending column `gender` to bnb.
-```{r, evaL=FALSE}
-# truncate host name to first word
-bnb$host_name <- word(bnb$host_name, 1)
-# classify gender based off of host name
-gender <- distinct(gender(bnb$host_name, method = "ssa"))
-# add gender column to bnb
-bnb <- merge(bnb, gender, by.x = "host_name", by.y = "name", all.x = TRUE)
-bnb$gender <- as.factor(bnb$gender)
-table(bnb$gender)
-bnb <- na.omit(bnb)
-```
-
-## Gender Train/Test Split
-```{r, eval=FALSE}
-g.ID <- sample(1:nrow(bnb), 0.8*nrow(bnb))
-g.train <- bnb[g.ID,]
-g.test <- bnb[-g.ID,]
-
-xtrain <- g.train[,c("neighbourhood_group", 
-                     "latitude", 
-                     "longitude", 
-                     "room_type", 
-                     "price", 
-                     "minimum_nights", 
-                     "number_of_reviews", 
-                     "reviews_per_month", 
-                     "calculated_host_listings_count", 
-                     "availability_365")]
-
-# crude conversion from factor to numeric for knn method
-xtrain$neighbourhood_group <- as.numeric(xtrain$neighbourhood_group)
-xtrain$room_type <- as.numeric(xtrain$room_type)
-
-ytrain <- g.train$gender
-
-xtest <- g.test[1:16]
-ytest <- g.test$gender
-```
-
 ## Predicting Gender with KNN
 TODO: find best k by cross validation
 ```{r, eval=FALSE}
@@ -678,4 +689,93 @@ pred.ytrain <- knn(train = xtrain, test = xtrain, cl = ytrain, k = 5)
 sum(diag(conf.matrix))/sum(conf.matrix)
 ```
 
+# Conclusion
 
+# Appendix
+
+```{r ref.label="library", eval = F}
+
+```
+
+Read in the CSV and check the dimensions of the data.
+```{r ref.label="read_data", eval = F}
+
+```
+
+Since observations which have a price of 0 will not be useful to our analysis, and are likely to be representative of a bad data point, we will remove these observations.
+
+```{r ref.label="remove_zero", eval = F}
+
+```
+
+Train-test split the data
+
+```{r ref.label="train-test", eval = F}
+
+```
+
+We can get the column names of the columns which contain NA's with the following code:
+
+```{r ref.label="na_cols", eval = F}
+
+```
+
+We can see that there are NA reviews in the `reviews_per_month`, the number of reviews per month. We can also see upon visual inspection `last_review`, the date of the last review the host received, also contains empty values. We will not be using last_review in our analysis, so we will not worry about imputing values here. 
+
+We believe the reason there are NA's in the `reviews_per_month` column is because the hosts have 0 reviews overall. We further explore this claim the below:
+
+
+```{r ref.label="sum_zero", eval = F}
+
+```
+
+We can see there are no cases where the `number_of_reviews` and `reviews_per_month`. As a result, we will impute 0 where `reviews_per_month` is NA.
+
+```{r ref.label="set_na", eval = F}
+
+```
+
+We can assess the correlation between numeric features with a correlation heatmap:
+
+```{r ref.label="corr_plot", eval = F}
+
+```
+
+```{r ref.label="pairplot", eval = F}
+
+```
+
+```{r ref.label="neighbourhood", eval = F}
+
+```
+
+There are 221 neighborhoods covered in the overall data, but only 5 neighbourhood groups. We will further investigate whether we need to use the neighbourhood, or whether we would like to use the negihbourhood groups for simplicity of our model. 
+
+We will determine whether we should use the neigbourhood by seeing if there is a large disparity in mean price by calculating the mean price for the neighbourhood. If there seems to be large disparities within the neighbourhood group for mean pricing, we will attempt to use neighbourhood itself.
+
+```{r ref.label="location", eval = F}
+
+```
+
+It does not seem there are any large disparities in pricing, and all the neighbourhood groups seems to be similar to their nearby neighbours. To reduce the complexity of our model, we will use the neighbourhood group.
+
+```{r ref.label="price_hist", eval = F}
+
+```
+
+```{r ref.label="library", eval = F}
+
+```
+
+```{r ref.label="library", eval = F}
+
+```
+
+```{r ref.label="library", eval = F}
+
+```
+
+
+```{r ref.label="library", eval = F}
+
+```
