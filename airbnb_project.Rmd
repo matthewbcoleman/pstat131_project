@@ -520,34 +520,67 @@ plot(rbind(train, test)$latitude,
 
 
 ## Best Linear Kernel SVM
-* Misclass. Rate: 0.3285617
+* Misclass. Rate: 0.1792774
 * Cost Parameter: 0.09
 * Support Vectors: 4598
 ```{r}
 # determine approximate best cost parameter
 # tune.linear <- tune(svm, price_above ~ latitude+longitude, data = train, kernel = "linear", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
 # increase precision of cost parameter
-# tune.linear <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "linear", ranges = list(cost = seq(.05, .15, .01)))
-best.linear <- svm(price_above ~ longitude+latitude, data = train, kernel = "linear", cost = 0.09)
+# tune.linear <- tune(svm, price_above ~ longitude
+#                     +latitude
+#                     +neighbourhood
+#                     +minimum_nights
+#                     +room_type
+#                     +minimum_nights
+#                     +number_of_reviews
+#                     +calculated_host_listings_count
+#                     +availability_365, data = train, kernel = "linear", ranges = list(cost = seq(.05, .15, .01)))
+best.linear <- svm(price_above ~ longitude
+                    +latitude
+                    +neighbourhood
+                    +minimum_nights
+                    +room_type
+                    +minimum_nights
+                    +number_of_reviews
+                    +calculated_host_listings_count
+                    +availability_365, data = train, kernel = "linear", cost = 0.06)
 pred.linear <- predict(best.linear, test)
 
-plot(best.linear, test[,c("price_above", "longitude", "latitude")])
+plot(best.linear, test[,c("price_above","longitude", "latitude")])
 
 (MSE.linear <-mean((as.numeric(test$price_above) - as.numeric(pred.linear))^2))
 
 # confusion matrix
 (conf.linear <- table(obs = test$price_above, pred = pred.linear))
 (acc <- 1 - sum(diag(conf.linear)/sum(conf.linear)))
+
 ```
 
 ## Best Polynomial Kernel SVM
-* Misclass. Rate: 0.2828903
+* Misclass. Rate: 0.1785958
 * Cost Parameter: 10
 * Degree: 3
 * Support Vectors: 5737
 ```{r}
-# tune.poly <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "polynomial", ranges = list(cost = c(10, 15, 20)))
-best.poly <- svm(price_above ~ longitude+latitude, data = train, kernal = "polynomial", cost = 10)
+tune.poly <- tune(svm, price_above ~ longitude
+                    +latitude
+                    +neighbourhood
+                    +minimum_nights
+                    +room_type
+                    +minimum_nights
+                    +number_of_reviews
+                    +calculated_host_listings_count
+                    +availability_365, data = train, kernel = "polynomial", ranges = list(cost = c(9, 10, 11)))
+best.poly <- svm(price_above ~ longitude
+                    +latitude
+                    +neighbourhood
+                    +minimum_nights
+                    +room_type
+                    +minimum_nights
+                    +number_of_reviews
+                    +calculated_host_listings_count
+                    +availability_365, data = train, kernal = "polynomial", cost = 10)
 pred.poly <- predict(best.poly, test)
 plot(best.poly, test[,c("price_above", "longitude", "latitude")])
 (MSE.poly <- mean((as.numeric(test$price_above) - as.numeric(pred.poly))^2))
@@ -558,13 +591,29 @@ plot(best.poly, test[,c("price_above", "longitude", "latitude")])
 ```
 
 ## Best Radial Kernel SVM
-* MSE: 0.2815269
+* MSE: 0.1785958
 * Cost Parameter: 14
 * Support Vectors: 3615
 ```{r}
 # tune.rad <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "radial", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
-# tune.rad <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "radial", ranges = list(cost = seq(5, 15, 1)))
-best.rad <- svm(price_above ~ longitude+latitude, data = train, kernel = "radial", cost = 14)
+tune.rad <- tune(svm, price_above ~ longitude
+                    +latitude
+                    +neighbourhood
+                    +minimum_nights
+                    +room_type
+                    +minimum_nights
+                    +number_of_reviews
+                    +calculated_host_listings_count
+                    +availability_365, data = train, kernel = "radial", ranges = list(cost = seq(8, 11, 1)))
+best.rad <- svm(price_above ~ longitude
+                    +latitude
+                    +neighbourhood
+                    +minimum_nights
+                    +room_type
+                    +minimum_nights
+                    +number_of_reviews
+                    +calculated_host_listings_count
+                    +availability_365, data = train, kernel = "radial", cost = 8)
 plot(best.rad, test[,c("price_above", "latitude", "longitude")])
 pred.rad <- predict(best.rad, test)
 (conf.rad <- table(obs=test$price_above, pred=pred.rad))
