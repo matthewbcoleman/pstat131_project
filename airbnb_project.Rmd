@@ -6,9 +6,15 @@ output:
   pdf_document:
     number_sections: true
     fig_caption: yes
-    includes:  
-      in_header: preamble-latex.tex
+   
 ---
+
+```{r global_options, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(fig.pos = '!h')
+#includes:  
+# in_header: preamble-latex.tex
+```
 
 ```{r library, echo = F}
 # Anything below here before the abstract has to be here so we can run code in the analysis and have output
@@ -24,6 +30,8 @@ library(rattle)
 library(knitr)
 library(fastAdaboost)
 library(ggpubr)
+library(MASS)
+#library(train)
 ```
 
 ```{r read_data, echo = F}
@@ -79,15 +87,13 @@ test$price_above <- ifelse(test$price> median(test$price),1,0)
 #test$price_above <- as.factor(test$price_above)
 ```
 
-```{r, echo = F}
+```{r pariplot1, echo = F}
 num.feat <- train %>% dplyr::select(longitude, latitude, minimum_nights, number_of_reviews, 
                                     reviews_per_month, calculated_host_listings_count, price) 
 num.feat$lprice <- log(num.feat$price)
-feat.corr <- cor(num.feat)
-corrplot::corrplot(feat.corr, main = 'Feature Correlations')
 ```
 
-```{r pairplot, echo = F}
+```{r pairplot2, eval = F}
 pairs(num.feat)
 ```
 
@@ -106,8 +112,6 @@ n_distinct(bnb$neighbourhood_group)
 
 # Introduction
 
-
-
 # Methods
 
 ## Data
@@ -116,7 +120,7 @@ The dataset we will be using for our analysis is the dataset [New York City Airb
 
 * Price: Our main response variable. The price, in dollars, of the listing per night. Log-transformed to normalize distribution. 
 
-```{r, echo = FALSE, fig.cap = 'Log-transformed Price'}
+```{r logprice_hist, echo = FALSE, fig.cap = 'Log-transformed Price'}
 hist(log(train$price), main='Histogram of log(Price)', xlab = 'log(Price)')
 ```
 
@@ -125,16 +129,18 @@ hist(log(train$price), main='Histogram of log(Price)', xlab = 'log(Price)')
 * Neighbourhood Group: Factor variable of the neighbourhood group to which the listing belongs. There are 5 neighbourhood groups in the dataset.
   * Plots of both neigbourhood and neighbourhood group are shown below: 
   
-    ```{r location, fig.width = 6.5, echo = F, fig.cap = 'Neighbourhood and neighbourhood group}
+    ```{r location, fig.width = 6.5, echo = F, fig.cap = 'Neighbourhood and neighbourhood group'}
 n <- ggplot(data = train, aes(x = latitude, y = longitude, color = neighbourhood)) + 
   geom_point() + theme(legend.position="none") + xlab('Latitude') + ylab('Longitude') +
-  ggtitle('New York City Airbnb Listing Neighbourhood')
+  ggtitle('Neighbourhood')
 
 ng <- ggplot(data = train, aes(x = latitude, y = longitude, color = neighbourhood_group)) + 
   geom_point() + theme(legend.position="none") + xlab('Latitude') + ylab('Longitude') +
-  ggtitle('New York City Airbnb Listing Neighbourhood Groups')
+  ggtitle('Neighbourhood Groups')
 
-ggarrange(n, ng, nrow = 1, ncol = 2)
+fig <- ggarrange(n, ng, nrow = 1, ncol = 2)
+
+annotate_figure(fig, top = 'New York City Airbnb Listing Locations By:')
 ```
 
 
@@ -239,7 +245,8 @@ Methods used to predict whether a listings price is above the median:
 
 # Analysis and Discussion
 
-```{r}
+## Linear Models
+```{r ols, echo = F}
 set.seed(123)
 ols.price <- lm(log(price) ~ latitude + longitude + minimum_nights + reviews_per_month +
                        neighbourhood_group +  room_type + calculated_host_listings_count, data = train)
@@ -247,37 +254,25 @@ ols.pred <- predict(ols.price, test)
 
 ols.mspe <- mean((log(test$price)-ols.pred)^2)
 ols.mspe
-
 ```
 
-
-```{r}
+```{r logit, echo = F}
 #initial LR model
 set.seed(123)
-attach(train)
-logit.fit <- glm(price_above ~ 
-                 longitude 
-               + latitude
-               + minimum_nights
-               + calculated_host_listings_count
-               + availability_365
-               + reviews_per_month
-               + room_type
-               + neighbourhood_group
-              ,
-               data=train, 
-               family=binomial('logit'))
+logit.fit <- glm(price_above ~longitude + latitude+ minimum_nights+ calculated_host_listings_count+ 
+                   availability_365 + reviews_per_month + room_type + neighbourhood_group, data=train,
+                 family=binomial('logit'))
 
-fit.probs <- predict(logit.fit, test, type="response")
-fit.pred <- rep(0, length(price_above))
-fit.pred[fit.probs>.5]=1
-table(fit.pred,price_above)
-mean(fit.pred!=price_above)
+fit.pred <- predict(logit.fit, test, type="response")
+fit.pred <- ifelse(fit.pred>.5, 1, 0)
+table(fit.pred,test$price_above)
+mean(fit.pred!=test$price_above)
 ```
 
-```{r}
+## Discriminant Analysis
+
+```{r lda, echo = F}
 #initial lda model
-library(MASS)
 lda.fit <- lda(price_above ~ 
                  longitude 
                + latitude
@@ -291,13 +286,13 @@ lda.fit <- lda(price_above ~
                data=train)
 lda.fit
 
-yhat <- predict(lda.fit)$class
-tr.tbl <- table(obs=train$price_above,pred=yhat)
+yhat <- predict(lda.fit, test)$class
+tr.tbl <- table(obs=test$price_above,pred=yhat)
 tr.tbl
-1-sum(diag(tr.tbl))/sum(tr.tbl)
+mean(yhat != test$price_above)
 ```
 
-``` {r}
+``` {r qda, echo = F}
 qda.fit <- qda(price_above ~ longitude + latitude
                + minimum_nights
                + calculated_host_listings_count
@@ -315,70 +310,65 @@ tr.tbl
 1-sum(diag(tr.tbl))/sum(tr.tbl)
 ```
 
-### Tree-based Methods
+## Tree-based Methods
 
-Looking at the latitude and longitude data, we may be able to use a regression tree to determine areas where the price is higher.
+### Classification and Regression Trees
 
-```{r}
+```{r class_tree, echo = F, fig.cap = 'Classification Tree'}
 set.seed(123)
 class.tree <- rpart(as.factor(price_above)~latitude + longitude + minimum_nights + reviews_per_month +
                        neighbourhood_group +  room_type + calculated_host_listings_count, data = train)
 
+tree.class.prediction <- predict(class.tree, test, type = 'class')
+tree.class.misclass <- mean(test$price_above !=tree.class.prediction)
+
 fancyRpartPlot(class.tree, digits = 6, main = 'Classification Tree for Price Above Median', sub = '')
 ```
 
-As we can see from this output, there does not seem to be much difference. Lets try predictions and find out the missclassification rate.
+The classification tree on all predictors split only on the type of room. We can see from the dendrogram that if a room is a private room or a shared room, the listing would be classified as "below the median price," and if it is a whole apartment or home then it would be classified as "below the median price."
 
-```{r}
+```{r prune_tree, eval = F}
 set.seed(123)
-tree.class.prediction <- predict(class.tree, test, type = 'class')
-tree.class.missclass <- mean(test$price_above !=tree.class.prediction)
 
 #Pruning tree did not improve tree
-#plot(cv.tree(loc.tree))
 
-#prune <- prune.tree(loc.tree, best = 4, newdata = test)
-#plot(prune)
-#text(prune)
+# prune <- prune.tree(loc.tree, best = 4, newdata = test)
+# plot(prune)
+# text(prune)
+# tree.class.misclass
 ```
 
-```{r}
+```{r reg_tree, fig.cap= 'Regression Tree'}
 set.seed(123)
 tree.reg <- rpart(log(price) ~ latitude + longitude + minimum_nights + reviews_per_month +
                        neighbourhood_group +  room_type + calculated_host_listings_count, data = train)
 
+reg.prediction <- predict(tree.reg, test)
+tree.mspe <- mean((log(test$price)-reg.prediction)^2)
+
 fancyRpartPlot(tree.reg, digits = 6,  sub = '')
 ```
 
-```{r}
+The regression tree is more intricate than the classification tree. The main split is on the room type of the listing, and then both splits are made on the neighbourhood group. The last splits made are on the location of the the listing.
+
+### Random Forests
+
+```{r rf_class, echo = F}
 set.seed(123)
-reg.prediction <- predict(tree.reg, test)
-
-tree.mspe <- mean((log(test$price)-reg.prediction)^2)
-tree.mspe
-```
-
-As we can see, the misclassification rate is pretty high. This may not come to as a surprise because the tree is very small, and covers a large amount of data, leading to over-generalization of the data. Choosing an ensemble tree method may be best for analyzing this dataset.
-
-```{r}
-set.seed(123)
-rf.class <- randomForest(price_above  ~ latitude + longitude + minimum_nights +  reviews_per_month +
+rf.class <- randomForest(as.factor(price_above)  ~ latitude + longitude + minimum_nights +  reviews_per_month +
                        neighbourhood_group +  room_type + calculated_host_listings_count,
                      data = train, mportance = TRUE)
 
-randomForest::importance(rf.class)
+#randomForest::importance(rf.class)
 
 rf.class.pred <- predict(rf.class,test)
-rf.missclass <- mean(test$price_above!=rf.class.pred)
+rf.misclass <- mean(test$price_above!=rf.class.pred)
 
-sprintf('The misclassification rate for the classification random forest is %f', rf.missclass)
-varImpPlot(rf.class)
-
+#sprintf('The misclassification rate for the classification random forest is %f', rf.misclass)
+#varImpPlot(rf.class)
 ```
 
-As we can see, using the model with all the relevant predictors has almost half the missclassification rate as the single tree with longitude and latitude.
-
-```{r}
+```{r rf_reg, echo = F}
 set.seed(123)
 rf.reg <- randomForest(log(price) ~ latitude + longitude + minimum_nights +  reviews_per_month +
                        neighbourhood_group +  room_type + calculated_host_listings_count,
@@ -387,54 +377,51 @@ rf.reg <- randomForest(log(price) ~ latitude + longitude + minimum_nights +  rev
 rf.reg.pred <- predict(rf.reg,test)
 rf.mspe <- mean((log(test$price)-rf.reg.pred)^2)
 
-sprintf('The mean squared prediction error for the regression random forest is %f', rf.mspe)
-```
-There still does not seem to be much of an improvement over the tree for the regression fit on the data. We can try to re-evaluate the random forest model through cross validation and seeing if we can select important features.
-
-```{r}
-varImpPlot(rf.reg)
+#sprintf('The mean squared prediction error for the regression random forest is %f', rf.mspe)
 ```
 
-The variable importance plot shows us that `room_type`, `longitude`, `latitude`, and `reviews_per_month` are the most important variables.
-
-```{r}
-# set.seed(123)
-# rf.cv.trainx <- train %>% dplyr::select(latitude, longitude, minimum_nights, reviews_per_month,
-#                                 neighbourhood_group, room_type, calculated_host_listings_count)
-# rf.cv.trainy <- log(train$price)
-# cv.rf <- rfcv(rf.cv.trainx,rf.cv.trainy, cv.fold = 5)
-# plot(cv.rf$n.var, cv.rf$error.cv, type = 'b', xlab = 'Number of Variables in Model', ylab = 'Cross-Validation Error')
+```{r var_imp, fig.cap = 'Variable Importances for RF Models'}
+par(mfrow = c(2,1))
+varImpPlot(rf.class, main = 'RF Classification Model')
+varImpPlot(rf.reg, main = 'RF Regression Model')
 ```
-As we can see, the cross validation error is the lowest when we use the most predictors. Despite this, There does not seem to be much of a decrease after there are 4 variables in the model, so we will try to fit a model with 4 variables.
 
-We will try fitting the 4 most important variables from the regression random forest, and seeing whether this model is better, or the same, as out more complex model.
-
-```{r}
+```{r cv_rf, echo = F, fig.cap = 'Cross Validation Error by # of Predictors'}
 set.seed(123)
-rf.reduced <- randomForest(log(price)  ~ latitude + longitude + reviews_per_month + room_type, data = train, mportance = TRUE)
-
-rf.reg.red <- predict(rf.reduced,test)
-rf.red.mspe <- mean((log(test$price)-rf.reg.red)^2)
-
-sprintf('The mean squared prediction error for the regression random forest is %f', rf.red.mspe)
+rf.cv.trainx <- train %>% dplyr::select(latitude, longitude, minimum_nights, reviews_per_month,
+                                neighbourhood_group, room_type, calculated_host_listings_count)
+rf.cv.trainy <- log(train$price)
+cv.rf <- rfcv(rf.cv.trainx,rf.cv.trainy, cv.fold = 5)
+plot(cv.rf$n.var, cv.rf$error.cv, type = 'b', xlab = 'Number of Variables in Model', ylab = 'Cross-Validation Error')
 ```
-By reducing the number of predictors, we were able to slightly increase the MSE, while creating a much simpler model.
 
-```{r}
+```{r red_rf, echo = F}
 set.seed(123)
-rf.red.class <- randomForest(log(price)  ~latitude + longitude +  reviews_per_month +
-                       room_type , data = train, mportance = TRUE)
+rf.reg.reduced <- randomForest(log(price) ~ latitude + longitude + neighbourhood_group + room_type, 
+                               data = train, importance = TRUE)
 
-rfr.class.pred <- predict(rf.reg,test)
-rfr.missclass <- mean(test$price_above!=rf.class.pred)
+rfr.reg.pred <- predict(rf.reg.reduced,test)
+rfr.reg.mspe <- mean((log(test$price)-rfr.reg.pred)^2)
 
-sprintf('The misclassification rate for the classification random forest is %f', rfr.missclass)
+#sprintf('The mean squared prediction error for the reduced regression random forest is %f', rf.red.mspe)
 ```
 
-# Bagging
 
-Lets try bagging with the smaller subset of variables
-```{r}
+```{r red_class_rf, echo = F}
+set.seed(123)
+
+rf.class.reduced <- randomForest(as.factor(price_above)  ~latitude + longitude +  reviews_per_month +
+                       room_type , data = train, importance = TRUE)
+
+rfr.class.pred <- predict(rf.class.reduced,test)
+rfr.misclass <- mean(test$price_above!=rfr.class.pred)
+
+sprintf('The misclassification rate for the reduced classification random forest is %f', rfr.misclass)
+```
+
+### Boostrap-Aggregating (Bagging)
+
+```{r bag_reg, echo = F}
 set.seed(123)
 bag.reg <- randomForest(log(price)  ~ latitude + longitude + reviews_per_month +  room_type,
                      data = train, mtry = 4 , importance = TRUE)
@@ -442,24 +429,23 @@ bag.reg <- randomForest(log(price)  ~ latitude + longitude + reviews_per_month +
 bag.reg.pred <- predict(bag.reg,test)
 bag.mspe <- mean((log(test$price)-bag.reg.pred)^2)
 
-sprintf('The mean squared prediction error for bagging is %f', bag.mspe)
+# sprintf('The mean squared prediction error for bagging is %f', bag.mspe)
 ```
-The prediction error is about the same as it is for a random forest.
 
-```{r}
+```{r bag_class, echo = F}
 set.seed(123)
-bag.class <- randomForest(price_above ~ latitude + longitude + reviews_per_month +  room_type,
+bag.class <- randomForest(as.factor(price_above) ~ latitude + longitude + reviews_per_month +  room_type,
                      data = train, mtry = 4 , importance = TRUE)
 
 bag.class.pred <- predict(bag.class,test)
-bag.missclass <- mean(test$price_above!=bag.class.pred)
+bag.misclass <- mean(test$price_above!=bag.class.pred)
 
-sprintf('The misclassification rate for the classification random forest is %f', bag.missclass)
+# sprintf('The misclassification rate for the bagged classification model is %f', bag.misclass)
 ```
 
-## Boosting
+### Boosting
 
-```{r}
+```{r boost_red, echo = F}
 set.seed(123)
 boost.mod <- gbm(log(price) ~ latitude + longitude +   reviews_per_month +  room_type, data = train,
                  n.trees = 1000, cv.folds = 5, distribution = 'gaussian')
@@ -467,12 +453,10 @@ boost.pred <- predict(boost.mod, test, n.trees = 1000)
 
 boost.mspe <- mean((log(test$price)-boost.pred)^2)
 
-sprintf('The mean squared prediction error for bagging is %f', boost.mspe)
+#sprintf('The mean squared prediction error for boosting is %f', boost.mspe)
 ```
 
-As with all our other models, this one is about the same. We can try different values of the shrinkage and see if we can find a best model for cross validation error
-
-```{r}
+```{r boost_lambda, echo = F}
 set.seed(123)
 lambdas <- seq(0,.5, .01)
 b.mspe.list <- NULL
@@ -489,9 +473,7 @@ plot(lambdas,b.mspe.list, type = 'b', ylab = 'Boosted MSPE', xlab = 'Lambda',
 ```
 
 
-There does not seem to be a discernable lambda from the plot.
-
-```{r}
+```{r best_boost, echo = F}
 set.seed(123)
 best.lambda <- lambdas[which.min(b.mspe.list)]
 
@@ -503,18 +485,20 @@ b.boost.mspe <- mean((log(test$price)-best.boost)^2)
 
 sprintf('The mean squared prediction error for bagging with the optimal lambda is is %f', b.boost.mspe)
 ```
+
 The mean squared prediction error has not improved with the best lambda.
 
-```{r}
+```{r ntree, echo = F}
+set.seed(123)
 tree.err <- NULL
 
-ntrees <- list(500,1000,1500,2000,2500)
+ntrees <- seq(250,2500,250)
 
 for(ntree in ntrees){
   boost.t.mod <- gbm(log(price) ~ latitude + longitude + 
-                       reviews_per_month +  room_type, data = train,
-               n.trees = ntree, shrinkage = best.lambda, distribution = 'gaussian')
-  boost.t.pred <- predict(boost.t.mod, test, n.trees = ntree)
+                       reviews_per_month +  room_type, data = train, n.trees = ntree, 
+                     shrinkage = best.lambda, distribution = 'gaussian')
+  boost.t.pred <- predict(boost.t.mod, test,n.trees = ntree)
 
   tree.err <- append(tree.err,mean((log(test$price)-boost.t.pred)^2))
 }
@@ -522,46 +506,61 @@ for(ntree in ntrees){
 
 plot(ntrees, tree.err, type = 'b', ylab = 'Boosted MSPE', xlab = 'Trees', 
      main = 'MSPE vs. Number of Trees')
+best.tree <- ntrees[which.min(tree.err)]
 ```
 
-```{r}
+```{r boost_class_lambda, echo = F }
 set.seed(123)
 lambdas <- seq(0,.5, .01)
-b.miss.list <- NULL
+b.mis.list <- NULL
 
 for(lambda in lambdas){
-  boost.m.mod <- gbm(price_above ~ latitude + longitude +   
+  boost.m.mod <- gbm(as.character(price_above) ~ latitude + longitude +
                        reviews_per_month +  room_type, data = train,
-                     n.trees = 1000, shrinkage = lambda, distribution = 'bernoulli')
-  boost.m.pred <- predict(boost.m.mod, test, n.trees = 1000)
+                     n.trees = best.tree, shrinkage = lambda, distribution = 'bernoulli')
+  boost.m.pred <- predict(boost.m.mod, test, n.trees = best.tree, type = 'response')
+  boost.m.pred <- ifelse(boost.m.pred>=.51, 1,0)
 
-  b.miss.list <- append(b.miss.list, mean(test$price_above!=boost.m.pred))
+  b.mis.list <- append(b.mis.list, mean(test$price_above!=boost.m.pred))
 }
-plot(lambdas, b.miss.list, type = 'b', ylab = 'Boosted MSPE', xlab = 'Lambda', 
-     main = 'Missclass. vs. Lambdas')
+plot(lambdas, b.mis.list, type = 'b', ylab = 'Boosted Misclass', xlab = 'Lambda',
+     main = 'Misclassification. vs. Lambdas')
+
+best.class.lambda = 0.1
+
 ```
 
-```{r}
-set.seed(123)
-class.boost <- gbm(price_above ~ latitude + longitude +   
-                     reviews_per_month +  room_type, data = train, n.trees = 1000)
-boost.class.pred<- predict(class.boost, test, n.trees = 1000)
+The default shrinkage of `r best.class.lambda` was the best shrinkage value to classify if a listing is above the median price.
 
-boost.missclass <- mean(test$price_above!=boost.class.pred)
-boost.missclass
+```{r end_boost, echo = F}
+set.seed(123)
+
+# class.boost <- train(as.factor(price_above) ~ latitude + longitude + reviews_per_month +  room_type, 
+#                      method = 'gbm', data = train, verbose = FALSE)
+
+class.boost <- gbm(as.character(price_above) ~ latitude + longitude + reviews_per_month +  room_type,
+                   n.trees = best.tree, data = train, distribution = 'bernoulli')
+
+
+boost.class.pred<- predict(class.boost, test, n.trees = 1000, type = 'response')
+boost.class.pred <- ifelse(boost.class.pred>=.51, 1,0)
+
+
+boost.misclass <- mean(test$price_above!=boost.class.pred)
+boost.misclass
 ```
 
 All The tables for tree methods put together.
 
 ```{r tree_tables, echo = FALSE,  fig.cap = ""}
 Methods <- c('Tree','Bagging','Boosting', 'Random Forest', 'Reduced Random Forest')
-MSPE <- round(c(tree.mspe, bag.mspe, boost.mspe, rf.mspe, rf.red.mspe),6)
-Missclassification <- round(c(tree.class.missclass, bag.missclass ,boost.missclass, rf.missclass, rfr.missclass), 6)
+MSPE <- round(c(tree.mspe, bag.mspe, boost.mspe, rf.mspe, rfr.reg.mspe),6)
+Misclassification <- round(c(tree.class.misclass, bag.misclass ,boost.misclass, rf.misclass, rfr.misclass), 6)
 
 mspe.tab  <- cbind(Methods,MSPE)
-missclass.tab <- cbind(Methods,Missclassification)
+misclass.tab <- cbind(Methods,Misclassification)
 
-kable(list(`MSPE` = mspe.tab, Missclassification  = missclass.tab))
+kable(list(`MSPE` = mspe.tab, Misclassification  = misclass.tab))
 ```
 
 
@@ -608,7 +607,7 @@ best.linear <- svm(price_above ~ longitude
                     +availability_365, data = train, kernel = "linear", cost = 0.06)
 pred.linear <- predict(best.linear, test)
 
-plot(best.linear, test[,c("price_above","longitude", "latitude")])
+#plot(best.linear, test[,c("price_above","longitude", "latitude")])
 
 (MSE.linear <-mean((as.numeric(test$price_above) - as.numeric(pred.linear))^2))
 
@@ -624,15 +623,15 @@ plot(best.linear, test[,c("price_above","longitude", "latitude")])
 * Degree: 3
 * Support Vectors: 5737
 ```{r}
-tune.poly <- tune(svm, price_above ~ longitude
-                    +latitude
-                    +neighbourhood
-                    +minimum_nights
-                    +room_type
-                    +minimum_nights
-                    +number_of_reviews
-                    +calculated_host_listings_count
-                    +availability_365, data = train, kernel = "polynomial", ranges = list(cost = c(9, 10, 11)))
+# tune.poly <- tune(svm, price_above ~ longitude
+#                     +latitude
+#                     +neighbourhood
+#                     +minimum_nights
+#                     +room_type
+#                     +minimum_nights
+#                     +number_of_reviews
+#                     +calculated_host_listings_count
+#                     +availability_365, data = train, kernel = "polynomial", ranges = list(cost = c(9, 10, 11)))
 best.poly <- svm(price_above ~ longitude
                     +latitude
                     +neighbourhood
@@ -643,7 +642,7 @@ best.poly <- svm(price_above ~ longitude
                     +calculated_host_listings_count
                     +availability_365, data = train, kernal = "polynomial", cost = 10)
 pred.poly <- predict(best.poly, test)
-plot(best.poly, test[,c("price_above", "longitude", "latitude")])
+#plot(best.poly, test[,c("price_above", "longitude", "latitude")])
 (MSE.poly <- mean((as.numeric(test$price_above) - as.numeric(pred.poly))^2))
 
 # confusion matrix
@@ -657,15 +656,15 @@ plot(best.poly, test[,c("price_above", "longitude", "latitude")])
 * Support Vectors: 3615
 ```{r}
 # tune.rad <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "radial", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
-tune.rad <- tune(svm, price_above ~ longitude
-                    +latitude
-                    +neighbourhood
-                    +minimum_nights
-                    +room_type
-                    +minimum_nights
-                    +number_of_reviews
-                    +calculated_host_listings_count
-                    +availability_365, data = train, kernel = "radial", ranges = list(cost = seq(8, 11, 1)))
+# tune.rad <- tune(svm, price_above ~ longitude
+#                     +latitude
+#                     +neighbourhood
+#                     +minimum_nights
+#                     +room_type
+#                     +minimum_nights
+#                     +number_of_reviews
+#                     +calculated_host_listings_count
+#                     +availability_365, data = train, kernel = "radial", ranges = list(cost = seq(8, 11, 1)))
 best.rad <- svm(price_above ~ longitude
                     +latitude
                     +neighbourhood
@@ -675,7 +674,7 @@ best.rad <- svm(price_above ~ longitude
                     +number_of_reviews
                     +calculated_host_listings_count
                     +availability_365, data = train, kernel = "radial", cost = 8)
-plot(best.rad, test[,c("price_above", "latitude", "longitude")])
+#plot(best.rad, test[,c("price_above", "latitude", "longitude")])
 pred.rad <- predict(best.rad, test)
 (conf.rad <- table(obs=test$price_above, pred=pred.rad))
 (acc <- 1 - sum(diag(conf.rad)/sum(conf.rad)))
@@ -741,7 +740,11 @@ We can assess the correlation between numeric features with a correlation heatma
 
 ```
 
-```{r ref.label="pairplot", eval = F}
+```{r ref.label="pairplot1", eval = F}
+
+```
+
+```{r ref.label="pairplot2", eval = F}
 
 ```
 
@@ -753,7 +756,15 @@ There are 221 neighborhoods covered in the overall data, but only 5 neighbourhoo
 
 We will determine whether we should use the neigbourhood by seeing if there is a large disparity in mean price by calculating the mean price for the neighbourhood. If there seems to be large disparities within the neighbourhood group for mean pricing, we will attempt to use neighbourhood itself.
 
+```{r ref.label="logprice_hist", eval = F}
+
+```
+
 ```{r ref.label="location", eval = F}
+
+```
+
+```{r ref.label="mean_price", eval = F}
 
 ```
 
@@ -763,19 +774,127 @@ It does not seem there are any large disparities in pricing, and all the neighbo
 
 ```
 
-```{r ref.label="library", eval = F}
+```{r ref.label="corr_plot", eval = F}
 
 ```
 
-```{r ref.label="library", eval = F}
+```{r ref.label="ols", eval = F}
 
 ```
 
-```{r ref.label="library", eval = F}
+```{r ref.label="logit", eval = F}
+
+```
+
+```{r ref.label="class_tree", eval = F}
+
+```
+
+```{r ref.label="prune_tree", eval = F}
+
+```
+
+```{r ref.label="reg_tree", eval = F}
+
+```
+
+```{r ref.label="rf_class", eval = F}
+
+```
+
+```{r ref.label="rf_reg", eval = F}
+
+```
+
+There still does not seem to be much of an improvement over the regression tree. We can try to re-evaluate the random forest model through cross validation and seeing if we can select important features.
+
+The variable importance plot shows us that `room_type`, `longitude`, `latitude`, and `reviews_per_month` are the most important variables.
+
+```{r ref.label = 'var_imp', eval = F}
 
 ```
 
 
-```{r ref.label="library", eval = F}
+```{r ref.label="cv_rf", eval = F}
+
+```
+
+As we can see, the cross validation error is the lowest when we use the most predictors. Despite this, There does not seem to be much of a decrease after there are 4 variables in the model, so we will try to fit a model with 4 variables.
+
+We will try fitting the 4 most important variables from the regression random forest, and seeing whether this model is better, or the same, as out more complex model.
+
+```{r ref.label="red_rf", eval = F}
+
+```
+
+By reducing the number of predictors, we were able to slightly increase the MSE, while creating a much simpler model.
+
+Lets try bagging with the smaller subset of variables
+
+```{r ref.label="bag_reg", echo = F}
+set.seed(123)
+bag.reg <- randomForest(log(price)  ~ latitude + longitude + reviews_per_month +  room_type,
+                     data = train, mtry = 4 , importance = TRUE)
+
+bag.reg.pred <- predict(bag.reg,test)
+bag.mspe <- mean((log(test$price)-bag.reg.pred)^2)
+
+# sprintf('The mean squared prediction error for bagging is %f', bag.mspe)
+```
+
+The prediction error is about the same as it is for a random forest.
+
+
+```{r ref.label="bag_class", eval = F}
+
+```
+
+
+```{r ref.label="boost_red", eval = F}
+
+```
+
+As with all our other models, this one is about the same. We can try different values of the shrinkage and see if we can find a best model for cross validation error
+
+
+```{r ref.label="boost_lambda", eval = F}
+
+```
+
+There does not seem to be a discernable lambda from the plot.
+
+```{r ref.label="best_boost", eval = F}
+
+```
+
+```{r ref.label="ntree", eval = F}
+
+```
+
+```{r ref.label="boost_class_lambda", eval = F}
+
+```
+
+```{r ref.label="end_boost", eval = F}
+
+```
+
+```{r ref.label="boost_lambda", eval = F}
+
+```
+
+```{r ref.label="boost_lambda", eval = F}
+
+```
+
+```{r ref.label="boost_lambda", eval = F}
+
+```
+
+```{r ref.label="boost_lambda", eval = F}
+
+```
+
+```{r ref.label="boost_lambda", eval = F}
 
 ```
