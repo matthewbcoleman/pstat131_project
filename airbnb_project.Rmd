@@ -6,6 +6,9 @@ output:
   pdf_document:
     number_sections: true
     fig_caption: yes
+header-includes:
+  \usepackage{float}
+  \floatplacement{figure}{H}
    
 ---
 
@@ -16,7 +19,7 @@ knitr::opts_chunk$set(fig.pos = '!h')
 # in_header: preamble-latex.tex
 ```
 
-```{r library, echo = F}
+```{r library, include = F}
 # Anything below here before the abstract has to be here so we can run code in the analysis and have output
 library(tidyverse)
 library(dplyr)
@@ -93,7 +96,7 @@ num.feat <- train %>% dplyr::select(longitude, latitude, minimum_nights, number_
 num.feat$lprice <- log(num.feat$price)
 ```
 
-```{r pairplot2, eval = F}
+```{r pairplot2, include = F}
 pairs(num.feat)
 ```
 
@@ -327,7 +330,7 @@ fancyRpartPlot(class.tree, digits = 6, main = 'Classification Tree for Price Abo
 
 The classification tree on all predictors split only on the type of room. We can see from the dendrogram that if a room is a private room or a shared room, the listing would be classified as "below the median price," and if it is a whole apartment or home then it would be classified as "below the median price."
 
-```{r prune_tree, eval = F}
+```{r prune_tree, echo = F}
 set.seed(123)
 
 #Pruning tree did not improve tree
@@ -338,7 +341,7 @@ set.seed(123)
 # tree.class.misclass
 ```
 
-```{r reg_tree, fig.cap= 'Regression Tree'}
+```{r reg_tree, echo = F, fig.cap= 'Regression Tree',fig.height = 4, fig.width = 6}
 set.seed(123)
 tree.reg <- rpart(log(price) ~ latitude + longitude + minimum_nights + reviews_per_month +
                        neighbourhood_group +  room_type + calculated_host_listings_count, data = train)
@@ -346,10 +349,10 @@ tree.reg <- rpart(log(price) ~ latitude + longitude + minimum_nights + reviews_p
 reg.prediction <- predict(tree.reg, test)
 tree.mspe <- mean((log(test$price)-reg.prediction)^2)
 
-fancyRpartPlot(tree.reg, digits = 6,  sub = '')
+fancyRpartPlot(tree.reg, digits = 6,  sub = '', main = 'Regression Tree for log(Price)')
 ```
 
-The regression tree is more intricate than the classification tree. The main split is on the room type of the listing, and then both splits are made on the neighbourhood group. The last splits made are on the location of the the listing.
+The regression tree on is more intricate than the classification tree. The main split is on the room type of the listing, and then the next two splits are made on the neighbourhood group. The last splits made are on the location of the the listing.
 
 ### Random Forests
 
@@ -380,11 +383,13 @@ rf.mspe <- mean((log(test$price)-rf.reg.pred)^2)
 #sprintf('The mean squared prediction error for the regression random forest is %f', rf.mspe)
 ```
 
-```{r var_imp, fig.cap = 'Variable Importances for RF Models'}
+```{r var_imp, echo = F, fig.width = 6, fig.cap = 'Variable Importances for RF Models'}
 par(mfrow = c(2,1))
 varImpPlot(rf.class, main = 'RF Classification Model')
 varImpPlot(rf.reg, main = 'RF Regression Model')
 ```
+
+The random forest model imporances showed that room type, longitude, latitude, and reviews per month were the most important variables for the decrease in gini impurity for classification forests. For the regression model, room type, longitude, latitude, and neighbourhood group were the most important variables for the increase in node purity.
 
 ```{r cv_rf, echo = F, fig.cap = 'Cross Validation Error by # of Predictors'}
 set.seed(123)
@@ -394,6 +399,8 @@ rf.cv.trainy <- log(train$price)
 cv.rf <- rfcv(rf.cv.trainx,rf.cv.trainy, cv.fold = 5)
 plot(cv.rf$n.var, cv.rf$error.cv, type = 'b', xlab = 'Number of Variables in Model', ylab = 'Cross-Validation Error')
 ```
+
+Through cross validation, we were able to determine 4 variables in the model leads to the greatest decrease in the cross-validation error while accounting for model complexity. To choose the 4 variables to use in the reduced random forest model, I used the criteria of greatest variable importance from above. This means we chose room type, longitude, latitude, and reviews per month for the classification model and room type, longitude, latitude, and neighbourhood group of a regression model.
 
 ```{r red_rf, echo = F}
 set.seed(123)
@@ -406,7 +413,6 @@ rfr.reg.mspe <- mean((log(test$price)-rfr.reg.pred)^2)
 #sprintf('The mean squared prediction error for the reduced regression random forest is %f', rf.red.mspe)
 ```
 
-
 ```{r red_class_rf, echo = F}
 set.seed(123)
 
@@ -416,8 +422,10 @@ rf.class.reduced <- randomForest(as.factor(price_above)  ~latitude + longitude +
 rfr.class.pred <- predict(rf.class.reduced,test)
 rfr.misclass <- mean(test$price_above!=rfr.class.pred)
 
-sprintf('The misclassification rate for the reduced classification random forest is %f', rfr.misclass)
+#sprintf('The misclassification rate for the reduced classification random forest is %f', rfr.misclass)
 ```
+
+The misclassification rate for the random forest model with all the predictors included was `r rf.misclass`, as opposed to the `r rfr.misclass` misclassification rate of the reduced model. While the RF model with all the predictors is more accurate than the smaller model, the smaller model is simpler and more likely to be scalable in different scenarios. The mean squared prediction error of the full model, `r rf.mspe`, is also lower than the `r rfr.reg.mspe` MSPE of the smaller model. As with the classification forest, the simpler model is more scalable at the cost of prediction error. Another downside of the larger model is the possibility of overfitting to the training dataset.
 
 ### Boostrap-Aggregating (Bagging)
 
@@ -443,6 +451,8 @@ bag.misclass <- mean(test$price_above!=bag.class.pred)
 # sprintf('The misclassification rate for the bagged classification model is %f', bag.misclass)
 ```
 
+The bagging model was similar to the random forest model with a misclassification rate of `r bag.misclass` and a MSPE of `r bag.mspe`.
+
 ### Boosting
 
 ```{r boost_red, echo = F}
@@ -456,9 +466,11 @@ boost.mspe <- mean((log(test$price)-boost.pred)^2)
 #sprintf('The mean squared prediction error for boosting is %f', boost.mspe)
 ```
 
+The first parameter we tuned in the boosting model was the shrinkage parameter, $\lambda$. The lambda which results in the lowest MSPE will be the lambda used in the final boosting model.
+
 ```{r boost_lambda, echo = F}
 set.seed(123)
-lambdas <- seq(0,.5, .01)
+lambdas <- seq(0,.15, .002)
 b.mspe.list <- NULL
 
 for(lambda in lambdas){
@@ -472,6 +484,7 @@ plot(lambdas,b.mspe.list, type = 'b', ylab = 'Boosted MSPE', xlab = 'Lambda',
      main = 'MSPE vs. Lambdas')
 ```
 
+There was not a discernable optimal lambda for test MSE, so we decided to use the default value of $\lambda = 0.1$. This made model parameter selection the easiest. 
 
 ```{r best_boost, echo = F}
 set.seed(123)
@@ -483,10 +496,33 @@ best.boost <- predict(boost.mod, test, n.trees = 1000)
 
 b.boost.mspe <- mean((log(test$price)-best.boost)^2)
 
-sprintf('The mean squared prediction error for bagging with the optimal lambda is is %f', b.boost.mspe)
+#sprintf('The mean squared prediction error for bagging with the optimal lambda is is %f', b.boost.mspe)
 ```
 
-The mean squared prediction error has not improved with the best lambda.
+```{r boost_class_lambda, echo = F }
+set.seed(123)
+lambdas <- seq(0,.15, .002)
+b.mis.list <- NULL
+
+for(lambda in lambdas){
+  boost.m.mod <- gbm(as.character(price_above) ~ latitude + longitude +
+                       reviews_per_month +  room_type, data = train,
+                     n.trees = 1000, shrinkage = lambda, distribution = 'bernoulli')
+  boost.m.pred <- predict(boost.m.mod, test, n.trees = 1000, type = 'response')
+  boost.m.pred <- ifelse(boost.m.pred>=.51, 1,0)
+
+  b.mis.list <- append(b.mis.list, mean(test$price_above!=boost.m.pred))
+}
+plot(lambdas, b.mis.list, type = 'b', ylab = 'Boosted Misclass', xlab = 'Lambda',
+     main = 'Misclassification. vs. Lambdas')
+
+best.class.lambda = 0.1
+
+```
+
+As with the regression boosting model, the misclassification error rate does not seem to be at a minimum for any value of lambda, so we will also choose the default value for $\lambda$.
+
+The other parameter tuned for the boosing model was the number of trees used.
 
 ```{r ntree, echo = F}
 set.seed(123)
@@ -509,30 +545,9 @@ plot(ntrees, tree.err, type = 'b', ylab = 'Boosted MSPE', xlab = 'Trees',
 best.tree <- ntrees[which.min(tree.err)]
 ```
 
-```{r boost_class_lambda, echo = F }
-set.seed(123)
-lambdas <- seq(0,.5, .01)
-b.mis.list <- NULL
+The MSPE was the lowest for the model with 1500 trees, so we implemented this into the final boosting model.
 
-for(lambda in lambdas){
-  boost.m.mod <- gbm(as.character(price_above) ~ latitude + longitude +
-                       reviews_per_month +  room_type, data = train,
-                     n.trees = best.tree, shrinkage = lambda, distribution = 'bernoulli')
-  boost.m.pred <- predict(boost.m.mod, test, n.trees = best.tree, type = 'response')
-  boost.m.pred <- ifelse(boost.m.pred>=.51, 1,0)
-
-  b.mis.list <- append(b.mis.list, mean(test$price_above!=boost.m.pred))
-}
-plot(lambdas, b.mis.list, type = 'b', ylab = 'Boosted Misclass', xlab = 'Lambda',
-     main = 'Misclassification. vs. Lambdas')
-
-best.class.lambda = 0.1
-
-```
-
-The default shrinkage of `r best.class.lambda` was the best shrinkage value to classify if a listing is above the median price.
-
-```{r end_boost, echo = F}
+```{r end_class_boost, echo = F}
 set.seed(123)
 
 # class.boost <- train(as.factor(price_above) ~ latitude + longitude + reviews_per_month +  room_type, 
@@ -550,6 +565,20 @@ boost.misclass <- mean(test$price_above!=boost.class.pred)
 boost.misclass
 ```
 
+```{r end_reg_boost, echo = F}
+set.seed(123)
+boost.reg.final <- gbm(log(price) ~ latitude + longitude +   reviews_per_month +  room_type, data = train,
+                 n.trees = 1000,  distribution = 'gaussian')
+boost.pred <- predict(boost.reg.final, test, n.trees = 1000)
+
+boost.mspe <- mean((log(test$price)-boost.pred)^2)
+
+#sprintf('The mean squared prediction error for boosting is %f', boost.mspe)
+```
+
+
+### Tree Method Summary
+
 All The tables for tree methods put together.
 
 ```{r tree_tables, echo = FALSE,  fig.cap = ""}
@@ -560,11 +589,14 @@ Misclassification <- round(c(tree.class.misclass, bag.misclass ,boost.misclass, 
 mspe.tab  <- cbind(Methods,MSPE)
 misclass.tab <- cbind(Methods,Misclassification)
 
-kable(list(`MSPE` = mspe.tab, Misclassification  = misclass.tab))
+kable(list(`MSPE` = mspe.tab, Misclassification  = misclass.tab),
+      caption = 'Error Rates for Tree Models')
 ```
 
+The table with all the tree method error rate shows there is not a clear "best model" for the data. The random forest with all predictors has the lowest test MSE and misclassification error rate, but suffers from the possibility of overfitting the data and being too complex of a model. Because all of the methods are approximately equal in terms of predictive performance, a simpler model such as a simple tree or the reduced random forest may be best. Both of these models are simpler, and would therefore be more scalable in larger-data environments.
 
-# SVM
+## SVM
+
 Fitting SVM models
 ```{r}
 library(e1071)
@@ -835,14 +867,7 @@ By reducing the number of predictors, we were able to slightly increase the MSE,
 Lets try bagging with the smaller subset of variables
 
 ```{r ref.label="bag_reg", echo = F}
-set.seed(123)
-bag.reg <- randomForest(log(price)  ~ latitude + longitude + reviews_per_month +  room_type,
-                     data = train, mtry = 4 , importance = TRUE)
 
-bag.reg.pred <- predict(bag.reg,test)
-bag.mspe <- mean((log(test$price)-bag.reg.pred)^2)
-
-# sprintf('The mean squared prediction error for bagging is %f', bag.mspe)
 ```
 
 The prediction error is about the same as it is for a random forest.
@@ -878,11 +903,11 @@ There does not seem to be a discernable lambda from the plot.
 
 ```
 
-```{r ref.label="end_boost", eval = F}
+```{r ref.label="end_class_boost", eval = F}
 
 ```
 
-```{r ref.label="boost_lambda", eval = F}
+```{r ref.label="end_reg_boost", eval = F}
 
 ```
 
