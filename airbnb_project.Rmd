@@ -600,12 +600,6 @@ The table with all the tree method error rate shows there is not a clear "best m
 
 ## SVM
 
-<<<<<<< HEAD
-||||||| merged common ancestors
-# SVM
-=======
-## SVM
->>>>>>> 4b80f142cc8ec9febb657c4960b9e9336d47b783
 Fitting SVM models
 ```{r}
 library(e1071)
