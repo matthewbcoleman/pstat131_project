@@ -241,7 +241,10 @@ Methods used to predict whether a listings price is above the median:
   
   * Boosting: We will fit multiple (weak) trees sequentially, grown on information from the previously grown tree. Final prediction is a weighted of the weak learners 
   
-* SVM
+* SVM: We will fit support vector machines with different kernels (Linear, Polynomial, Radial). In order to select the best possible support vector machines, we will use k-fold cross validation to tune the cost parameter to obtain the lowest misclassification rate. 
+
+* KNN: We will fit a K-Nearest Neighbors model with optimal K selected by cross validation. 
+
 
 # Analysis and Discussion
 
@@ -564,7 +567,7 @@ kable(list(`MSPE` = mspe.tab, Misclassification  = misclass.tab))
 ```
 
 
-# SVM
+## SVM
 Fitting SVM models
 ```{r}
 library(e1071)
@@ -579,7 +582,7 @@ plot(rbind(train, test)$latitude,
 ```
 
 
-## Best Linear Kernel SVM
+### Best Linear Kernel SVM
 * Misclass. Rate: 0.1792774
 * Cost Parameter: 0.09
 * Support Vectors: 4598
@@ -617,7 +620,7 @@ pred.linear <- predict(best.linear, test)
 
 ```
 
-## Best Polynomial Kernel SVM
+### Best Polynomial Kernel SVM
 * Misclass. Rate: 0.1785958
 * Cost Parameter: 10
 * Degree: 3
@@ -650,7 +653,7 @@ pred.poly <- predict(best.poly, test)
 (acc.poly <- 1 - sum(diag(conf.poly)/sum(conf.poly)))
 ```
 
-## Best Radial Kernel SVM
+### Best Radial Kernel SVM
 * MSE: 0.1785958
 * Cost Parameter: 14
 * Support Vectors: 3615
@@ -680,16 +683,44 @@ pred.rad <- predict(best.rad, test)
 (acc.rad <- 1 - sum(diag(conf.rad)/sum(conf.rad)))
 ```
 
-## KNN
-TODO: find best k by cross validation
-```{r, eval=FALSE}
-xtrain <- cbind(train$neighbourhood_group, train$latitude, train$longitude, train$room_type, train$minimum_nights, train$number_of_reviews, train$calculated_host_listings_count, train$availability_365)
-ytrain <- train$price_above
+```{r}
+x <- cbind(train$latitude, train$longitude)
+g <- train$price_above
+xnew <-cbind(test$latitude, test$longitude)
+mod15 <- knn(x, xnew, g, k=2, prob=TRUE)
 
-pred.ytrain <- knn.cv(train = xtrain, cl = ytrain, k = 5)
-(conf.matrix <- table(pred = pred.ytrain, obs = ytrain))
-sum(diag(conf.matrix))/sum(conf.matrix)
+prob <- attr(mod15, "prob")
+prob <- ifelse(mod15=="1", prob, 1-prob)
+px1 <- seq(min(x[,1]), max(x[,1]), .01)
+px2 <- seq(min(x[,2]), max(x[,2]), .01)
+
+prob15 <- matrix(prob, length(px1), length(px2))
+# par(mar=rep(2,4))
+contour(seq(min(x[,1]), max(x[,1]), .01), seq(min(x[,2]), max(x[,2]), .01), prob15, levels=1, labels="", xlab="", ylab="", main=
+        "15-nearest neighbour", axes=TRUE)
+points(x, col=ifelse(g==1, "coral", "cornflowerblue"))
+gd <- expand.grid(x=px1, y=px2)
+points(gd, pch=".", cex=1.2, col=ifelse(prob15>0.5, "coral", "cornflowerblue"))
+box()
 ```
+
+
+## KNN
+Using cross validation to find k such that the cross validated error is minimized, we find that k = 27 gives us the minimum cross validated error of 0.1642808.
+
+```{r}
+set.seed(3)
+knn.caret <- train(price_above ~ neighbourhood_group+latitude+longitude+room_type+minimum_nights+number_of_reviews+calculated_host_listings_count+availability_365, data = train, method = "knn", trControl = trainControl("cv", number = 10), preProcess = c("center","scale"), tuneLength = 20)
+plot(knn.caret)
+```
+
+```{r}
+pred.knn <- predict(knn.caret, test)
+
+(conf.matrix <- table(pred = pred.knn, obs = test$price_above))
+1 - sum(diag(conf.matrix))/sum(conf.matrix)
+```
+
 
 # Conclusion
 
