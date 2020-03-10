@@ -225,7 +225,7 @@ $$\hat{\beta}_{ridge} = \underset{\beta}{argmin}[||Y-XB||^2 + \lambda\sum_{j=1}^
   
 $$\hat{\beta}_{ridge} = \underset{\beta}{argmin}[\ ||Y-XB||^2 + \lambda\sum_{j=1}^p|\beta_j|\ ]$$
 
-By using these two methods, we can try to reduce our estimates for the linear model by imposing some Bias on our estimates for $\beta$. Another benefit of using Lasso regression is that we can also perform model selection, making a simpler model. For choice of an optimal $\lambda$, we will use cross validation. 
+By using these two methods, we can try to reduce our estimates for the linear model by imposing some Bias on our estimates for $\beta$. Another benefit of using Lasso regression is that we can also perform model selection, making a simpler model.
 
 * Tree Methods
 
@@ -273,6 +273,7 @@ ols.pred <- predict(ols.price, test)
 ols.mspe <- mean((log(test$price)-ols.pred)^2)
 ols.mspe
 
+summary(ols.price)
 ```
 
 ```{r logit, echo = F}
@@ -807,7 +808,21 @@ Lasso$beta[, lambda.indL]
 
 # Conclusion
 
-There were many considerations to be taken into account when selecting our final model. First, we had to consider the accuracy of the model; if our test error rate was too high, then there would be no reason for us to implement a poorly-constructed model. Next was model complexity: we could use a model with multiple predictors and parameters, decreasing the error rate of our model, but in
+There were many considerations to be taken into account when selecting our final model. First, we had to consider the accuracy of the model; if our test error rate was too high, there would be no reason for to implement a poorly-constructed model. Next was model complexity: we could use a model with multiple predictors and parameters, decreasing the error rate of our model, but increasing the variance, or we could contstruct a simpler model with more bias, but lower variability. Choosing a simpler model would allow us to use our model in a larger setting and achieve similar test error rates. We can compare the test error rates of our different models and determine a best model.
+
+## Tree Error Rates
+
+```{r tree_tables, echo = FALSE}
+Methods <- c('Tree','Bagging','Boosting', 'Random Forest', 'Reduced Random Forest')
+MSPE <- round(c(tree.mspe, bag.mspe, boost.mspe, rf.mspe, rfr.reg.mspe),6)
+Misclassification <- round(c(tree.class.misclass, bag.misclass ,boost.misclass, rf.misclass, rfr.misclass), 6)
+
+mspe.tab  <- cbind(Methods,MSPE)
+misclass.tab <- cbind(Methods,Misclassification)
+
+kable(list(`MSPE` = mspe.tab, Misclassification  = misclass.tab), 
+      caption = 'Error Rates for Tree Models') %>% kable_styling(latex_options = "hold_position")
+```
 
 # Appendix
 
