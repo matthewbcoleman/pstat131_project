@@ -802,7 +802,7 @@ acc.rad <- 1 - sum(diag(conf.rad)/sum(conf.rad))
 
 ## KNN
 
-Using cross validation to find k such that the misclassification rate is minimized, we find that k = 27 gives us the minimum misclassification rate of 0.1642808. In the plot below, accuracy is maximized at k = 27.
+Using cross validation to find k such that the misclassification rate is minimized, we find that k = 29 gives us the minimum misclassification rate of 0.1656442. In the plot below, accuracy is maximized at k = 29.
 
 ```{r KNN}
 set.seed(3)
