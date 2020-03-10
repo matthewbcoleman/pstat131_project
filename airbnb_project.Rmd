@@ -35,6 +35,7 @@ library(knitr)
 library(fastAdaboost)
 library(ggpubr)
 library(MASS)
+library(kableExtra)
 #library(train)
 ```
 
@@ -45,7 +46,8 @@ bnb <- as_tibble(bnb)
 
 dims <- dim(bnb)
 
-sprintf('Our dataset has %d observations and %d attributes', dims[1],dims[2])
+#sprintf('Our dataset has %d observations and %d attributes', dims[1],dims[2])
+# [1] "Our dataset has 48895 observations and 16 attributes"
 ```
 
 ```{r remove_zero, echo = F}
@@ -69,19 +71,22 @@ test <- small[-train.small,]
 ```
 
 ```{r na_cols, echo = F}
-colnames(train)[apply(train, 2, anyNA)]
+#colnames(train)[apply(train, 2, anyNA)]
 ```
 
 ```{r sum_zero, echo = F}
-with(train, sum((is.na(reviews_per_month)) & (number_of_reviews!=0)) )
+#with(train, sum((is.na(reviews_per_month)) & (number_of_reviews!=0)) )
+# [1] 0
 ```
 
 ```{r set_na, echo = F}
 train[is.na(train$reviews_per_month),'reviews_per_month'] <- 0
 test[is.na(test$reviews_per_month),'reviews_per_month'] <- 0
 
-sum(is.na(train$reviews_per_month))
-sum(is.na(train$reviews_per_month))
+#sum(is.na(train$reviews_per_month))
+# [1] 0
+#sum(is.na(train$reviews_per_month))
+# [1] 0
 ```
 
 ```{r price_above, echo = F}
@@ -101,15 +106,19 @@ num.feat$lprice <- log(num.feat$price)
 pairs(num.feat)
 ```
 
-```{r neighbourhood, echo = F}
-levels(bnb$room_type)
+```{r neighbourhood, eval = F}
+# levels(bnb$room_type)
+# 
+# levels(bnb$neighbourhood_group)
+# 
+# n_distinct(bnb$neighbourhood)
+# 
+# n_distinct(bnb$neighbourhood_group)
 
-levels(bnb$neighbourhood_group)
-
-n_distinct(bnb$neighbourhood)
-
-n_distinct(bnb$neighbourhood_group)
-
+# [1] "Entire home/apt" "Private room"    "Shared room"    
+# [1] "Bronx"         "Brooklyn"      "Manhattan"     "Queens"        "Staten Island"
+# [1] 221
+# [1] 5
 ```
 
 # Abstract
@@ -182,12 +191,12 @@ hist(train$price, main='Histogram of Training Price', xlab = 'Price (USD)')
 
 We assessed the correlation between our variables with a correlation heatmap:
 
-```{r corr_plot, echo = F}
+```{r corr_plot, echo = F, fig.cap = 'Feature Correlations'}
 num.feat <- train %>% dplyr::select(longitude, latitude, minimum_nights, number_of_reviews, 
                                     reviews_per_month, calculated_host_listings_count, price) 
 num.feat$lprice <- log(num.feat$price)
 feat.corr <- cor(num.feat)
-corrplot::corrplot(feat.corr, main = 'Feature Correlations')
+corrplot::corrplot(feat.corr)
 ```
 
 Reviews per month and number of reviews were highly correlated, so we decided to remove number of reviews to account for collinearity.
@@ -261,6 +270,7 @@ ols.pred <- predict(ols.price, test)
 
 ols.mspe <- mean((log(test$price)-ols.pred)^2)
 ols.mspe
+
 ```
 
 ```{r logit, echo = F}
@@ -387,7 +397,7 @@ rf.mspe <- mean((log(test$price)-rf.reg.pred)^2)
 #sprintf('The mean squared prediction error for the regression random forest is %f', rf.mspe)
 ```
 
-```{r var_imp, echo = F, fig.width = 6, fig.cap = 'Variable Importances for RF Models'}
+```{r var_imp, echo = F, fig.width = 7, fig.height=7, fig.cap = 'Variable Importances for RF Models'}
 par(mfrow = c(2,1))
 varImpPlot(rf.class, main = 'RF Classification Model')
 varImpPlot(rf.reg, main = 'RF Regression Model')
@@ -566,7 +576,7 @@ boost.class.pred <- ifelse(boost.class.pred>=.51, 1,0)
 
 
 boost.misclass <- mean(test$price_above!=boost.class.pred)
-boost.misclass
+#boost.misclass
 ```
 
 ```{r end_reg_boost, echo = F}
@@ -580,14 +590,11 @@ boost.mspe <- mean((log(test$price)-boost.pred)^2)
 #sprintf('The mean squared prediction error for boosting is %f', boost.mspe)
 ```
 
-
 ### Tree Method Summary
 
-\newpage
+All The tables for tree methods put together. This will allow us to evaluate the efficacy of our tree models and determine which is the best.
 
-All The tables for tree methods put together.
-
-```{r tree_tables, echo = FALSE,  fig.cap = ""}
+```{r tree_tables, echo = FALSE}
 Methods <- c('Tree','Bagging','Boosting', 'Random Forest', 'Reduced Random Forest')
 MSPE <- round(c(tree.mspe, bag.mspe, boost.mspe, rf.mspe, rfr.reg.mspe),6)
 Misclassification <- round(c(tree.class.misclass, bag.misclass ,boost.misclass, rf.misclass, rfr.misclass), 6)
@@ -595,8 +602,8 @@ Misclassification <- round(c(tree.class.misclass, bag.misclass ,boost.misclass, 
 mspe.tab  <- cbind(Methods,MSPE)
 misclass.tab <- cbind(Methods,Misclassification)
 
-kable(list(`MSPE` = mspe.tab, Misclassification  = misclass.tab),
-      caption = 'Error Rates for Tree Models')
+kable(list(`MSPE` = mspe.tab, Misclassification  = misclass.tab), 
+      caption = 'Error Rates for Tree Models') %>% kable_styling(latex_options = "hold_position")
 ```
 
 The table with all the tree method error rate shows there is not a clear "best model" for the data. The random forest with all predictors has the lowest test MSE and misclassification error rate, but suffers from the possibility of overfitting the data and being too complex of a model. Because all of the methods are approximately equal in terms of predictive performance, a simpler model such as a simple tree or the reduced random forest may be best. Both of these models are simpler, and would therefore be more scalable in larger-data environments.
@@ -756,8 +763,9 @@ pred.knn <- predict(knn.caret, test)
 1 - sum(diag(conf.matrix))/sum(conf.matrix)
 ```
 
-
 # Conclusion
+
+There were many considerations to be taken into account when selecting our final model. First, we had to consider the accuracy of the model; if our test error rate was too high, then there would be no reason for us to implement a poorly-constructed model. Next was model complexity: we could use a model with multiple predictors and parameters, decreasing the error rate of our model, but in
 
 # Appendix
 
