@@ -38,6 +38,7 @@ library(MASS)
 library(kableExtra)
 library(glmnet)
 library(faraway)
+library(ROCR)
 #library(train)
 ```
 
@@ -258,12 +259,13 @@ Methods used to predict whether a listings price is above the median:
   
 * SVM: We will fit support vector machines with different kernels (Linear, Polynomial, Radial). In order to select the best possible support vector machines, we will use k-fold cross validation to tune the cost parameter to obtain the lowest misclassification rate. 
 
-* KNN: We will fit a K-Nearest Neighbors model with optimal K selected by cross validation. 
+* KNN: We will fit a K-Nearest Neighbours model with optimal K selected by cross validation. 
 
 
 # Analysis and Discussion
 
 ## Linear Models
+
 ```{r ols, echo = F}
 set.seed(123)
 ols.price <- lm(log(price) ~ latitude + longitude + minimum_nights + reviews_per_month +
@@ -273,7 +275,7 @@ ols.pred <- predict(ols.price, test)
 ols.mspe <- mean((log(test$price)-ols.pred)^2)
 ols.mspe
 
-summary(ols.price)
+#summary(ols.price)
 ```
 
 ```{r logit, echo = F}
@@ -294,7 +296,7 @@ plot(perf, col=2, lwd=3, main="ROC curve")
 abline(0,1)
 
 auc = performance(pred, "auc")@y.values
-auc
+
 ```
 
 ## Discriminant Analysis
@@ -774,9 +776,9 @@ pred.knn <- predict(knn.caret, test)
 1 - sum(diag(conf.matrix))/sum(conf.matrix)
 ```
 
-##Regularization
+## Regularization
 
-###Ridge Regression
+### Ridge Regression
 ```{r glmnet,faraway}
 
 X <- data.matrix(train)
@@ -804,7 +806,11 @@ Ridge$beta[, lambda.ind]
 X <- data.matrix(bnb)
 X <- X[,-c(10,2,4,5,6,9,13,14)]
 y <- log(bnb$price)
+
+X <- num.feat %>% 
 Lasso <- glmnet(x = X, y = y, alpha = 1)
+
+
 LassoCV <- cv.glmnet(x = X, y = y, alpha = 1, lambda = Lasso$lambda, nfolds = 10)
 lambda.indL <- which.min(LassoCV$cvm)
 lambda.bestL <- Lasso$lambda[lambda.indL]
@@ -832,6 +838,7 @@ kable(list(`MSPE` = mspe.tab, Misclassification  = misclass.tab),
       caption = 'Error Rates for Tree Models') %>% kable_styling(latex_options = "hold_position")
 ```
 
+## Final Models and error
 # Appendix
 
 ```{r ref.label="library", eval = F}
