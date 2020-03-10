@@ -671,12 +671,12 @@ conf.linear <- table(obs = test$price_above, pred = pred.linear)
 ```
 
 ### Best Polynomial Kernel SVM
-* Misclass. Rate: 0.5132924
+* Misclass. Rate: 0.1724608
 * Cost Parameter: 100
 * Degree: 3
 * Support Vectors: 5737
 
-Below is a plot of a polynomial kernel SVM decision boundary fit off of `longitude` and `latitude`. Fitting the model with identical predictors as our linear kernel SVM and using 10-fold cross validation, we obtain an optimal cost parameter value of 100. Our test misclassification rate is 0.5132924.
+Below is a plot of a polynomial kernel SVM decision boundary fit off of `longitude` and `latitude`. Fitting the model with identical predictors as our linear kernel SVM and using 10-fold cross validation, we obtain an optimal cost parameter value of 100. Our test misclassification rate is 0.1724608
 ```{r}
 # tune.poly <- tune(svm, price_above ~ longitude
 #                     +latitude
@@ -712,14 +712,14 @@ conf.poly <- table(obs = test$price_above, pred = as.factor(pred.poly))
 Below is a plot of the decision boundary of a radial kernel SVM fit on `latitude` and `longitude`. Fitting a model with identical parameters as the previous two models, we obtain a cost parameter value of 8 through 10-fold cross validation. Our test misclassification rate is 0.1785958.
 ```{r}
 # tune.rad <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "radial", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
-tune.rad <- tune(svm, price_above ~ longitude
-                    +latitude
-                    +neighbourhood_group
-                    +minimum_nights
-                    +room_type
-                    +number_of_reviews
-                    +calculated_host_listings_count
-                    +availability_365, data = train, kernel = "radial", ranges = list(cost = seq(8, 11, 1)))
+# tune.rad <- tune(svm, price_above ~ longitude
+#                     +latitude
+#                     +neighbourhood_group
+#                     +minimum_nights
+#                     +room_type
+#                     +number_of_reviews
+#                     +calculated_host_listings_count
+#                     +availability_365, data = train, kernel = "radial", ranges = list(cost = seq(8, 11, 1)))
 plot(svm(price_above ~ longitude+latitude, data = train, kernel = "radial", cost = 8), test[,c("price_above", "latitude", "longitude")])
 best.rad <- svm(price_above ~ longitude
                     +latitude
@@ -736,7 +736,7 @@ conf.rad <- table(obs=test$price_above, pred=pred.rad)
 
 
 ## KNN
-Using cross validation to find k such that the cross validated error is minimized, we find that k = 27 gives us the minimum cross validated error of 0.1642808.
+Using cross validation to find k such that the misclassification rate is minimized, we find that k = 27 gives us the minimum misclassification rate of 0.1642808. In the plot below, accuracy is maximized at k = 27.
 
 ```{r}
 set.seed(3)
@@ -747,8 +747,8 @@ plot(knn.caret)
 ```{r}
 pred.knn <- predict(knn.caret, test)
 
-(conf.matrix <- table(pred = pred.knn, obs = test$price_above))
-1 - sum(diag(conf.matrix))/sum(conf.matrix)
+conf.matrix <- table(pred = pred.knn, obs = test$price_above)
+acc.knn <- 1 - sum(diag(conf.matrix))/sum(conf.matrix)
 ```
 
 ##Regularization
@@ -794,6 +794,17 @@ Lasso$beta[, lambda.indL]
 # Conclusion
 
 There were many considerations to be taken into account when selecting our final model. First, we had to consider the accuracy of the model; if our test error rate was too high, then there would be no reason for us to implement a poorly-constructed model. Next was model complexity: we could use a model with multiple predictors and parameters, decreasing the error rate of our model, but in
+
+
+```{r}
+Methods <- c("Linear Kernel SVM", "Polynomial Kernel SVM", "Radial Kernel SVM", "KNN")
+Misclassification <- round(c(acc.linear, acc.poly, acc.rad, acc.knn), 6)
+
+misclass.tab <- cbind(Methods,Misclassification)
+
+kable(list(`Misclassification`  = misclass.tab), 
+      caption = 'Error Rates for Tree Models') %>% kable_styling(latex_options = "hold_position")
+```
 
 # Appendix
 
