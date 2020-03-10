@@ -127,6 +127,7 @@ pairs(num.feat)
 # Abstract
 
 # Introduction
+This project was conducted to predict the prices of Airbnb rentals in New York City. We aimed to compare parametric and non-parametric supervised machine learning models to select the ones with the lowest MSE and misclassification rates. 
 
 
 # Methods
