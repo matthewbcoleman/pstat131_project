@@ -14,7 +14,8 @@ header-includes:
 
 ```{r global_options, include=FALSE}
 library(knitr)
-knitr::opts_chunk$set(fig.pos = '!h')
+knitr::opts_chunk$set(fig.pos = 'H')
+# knitr::opts_chunk$set(fig.pos = '!h')
 #includes:  
 # in_header: preamble-latex.tex
 ```
@@ -583,6 +584,8 @@ boost.mspe <- mean((log(test$price)-boost.pred)^2)
 
 
 ### Tree Method Summary
+
+\newpage
 
 All The tables for tree methods put together.
 
