@@ -12,6 +12,15 @@ header-includes:
    
 ---
 
+\centering
+<p>
+
+
+<p>
+
+\raggedright
+\clearpage
+
 ```{r global_options, include=FALSE}
 library(knitr)
 knitr::opts_chunk$set(fig.pos = 'H')
@@ -39,6 +48,7 @@ library(kableExtra)
 library(glmnet)
 library(faraway)
 library(ROCR)
+library(e1071)
 #library(train)
 ```
 
@@ -55,6 +65,8 @@ dims <- dim(bnb)
 
 ```{r remove_zero, echo = F}
 bnb <- bnb[(bnb$price!=0),]
+bnb[is.na(bnb$reviews_per_month),'reviews_per_month'] <- 0
+bnb$price_above <- ifelse(bnb$price> median(bnb$price),1,0)
 ```
 
 ```{r train-test, echo = F}
@@ -93,9 +105,9 @@ test[is.na(test$reviews_per_month),'reviews_per_month'] <- 0
 ```
 
 ```{r price_above, echo = F}
-train$price_above <- ifelse(train$price> median(train$price),1,0)
+#train$price_above <- ifelse(train$price> median(train$price),1,0)
 #train$price_above <- as.factor(train$price_above)
-test$price_above <- ifelse(test$price> median(test$price),1,0)
+#test$price_above <- ifelse(test$price> median(test$price),1,0)
 #test$price_above <- as.factor(test$price_above)
 ```
 
@@ -109,7 +121,7 @@ num.feat$lprice <- log(num.feat$price)
 pairs(num.feat)
 ```
 
-```{r neighbourhood, eval = F}
+```{r neighbourhood, echo = F}
 # levels(bnb$room_type)
 # 
 # levels(bnb$neighbourhood_group)
@@ -282,7 +294,7 @@ ols.mspe
 #initial LR model
 set.seed(123)
 logit.fit <- glm(price_above ~longitude + latitude+ minimum_nights+ calculated_host_listings_count+ 
-                   availability_365 + reviews_per_month + room_type + neighbourhood_group, data=train,
+                    reviews_per_month + room_type + neighbourhood_group, data=train,
                  family=binomial('logit'))
 
 fit.pred <- predict(logit.fit, test, type="response")
@@ -625,7 +637,6 @@ The table with all the tree method error rate shows there is not a clear "best m
 
 In order to gain a rudimentary understanding of our data, we plotted a scatterplot Airbnb properties in New York coded by price above or below the median. It appears that the price of properties is noticably higher along waterfront properties. 
 ```{r}
-library(e1071)
 train$price_above <- as.factor(train$price_above)
 
 plot(rbind(train, test)$latitude, 
@@ -756,17 +767,9 @@ pred.knn <- predict(knn.caret, test)
 
 ## Regularization
 
-<<<<<<< HEAD
 ### Ridge Regression
-```{r glmnet,faraway}
-||||||| merged common ancestors
-###Ridge Regression
-```{r glmnet,faraway}
-=======
-###Ridge Regression
-```{r glmnet}
->>>>>>> de14d96fd2b7060fd2d8cdd227f042a9f874def8
 
+```{r glmnet}
 X <- data.matrix(num.feat)
 #X <- X[,-c(10,2,4,5,6,9,13,14)]
 y <- log(train$price)
@@ -793,13 +796,13 @@ proMSPE.Ridge
 
 ```
 
-###Lasso
-```{r glmnet}
+### Lasso
+```{r lasso}
 X <- data.matrix(bnb)
 X <- X[,-c(10,2,4,5,6,9,13,14)]
 y <- log(bnb$price)
 
-X <- num.feat %>% 
+#X <- num.feat %>% 
 Lasso <- glmnet(x = X, y = y, alpha = 1)
 
 
@@ -828,8 +831,8 @@ proMSPE.Lasso
 There were many considerations to be taken into account when selecting our final model. First, we had to consider the accuracy of the model; if our test error rate was too high, there would be no reason for to implement a poorly-constructed model. Next was model complexity: we could use a model with multiple predictors and parameters, decreasing the error rate of our model, but increasing the variance, or we could contstruct a simpler model with more bias, but lower variability. Choosing a simpler model would allow us to use our model in a larger setting and achieve similar test error rates. We can compare the test error rates of our different models and determine a best model.
 
 ## Tree Error Rates
-
-```{r tree_tables, echo = FALSE}
+ 
+```{r tree_tab_final, echo = FALSE}
 Methods <- c('Tree','Bagging','Boosting', 'Random Forest', 'Reduced Random Forest')
 MSPE <- round(c(tree.mspe, bag.mspe, boost.mspe, rf.mspe, rfr.reg.mspe),6)
 Misclassification <- round(c(tree.class.misclass, bag.misclass ,boost.misclass, rf.misclass, rfr.misclass), 6)
@@ -840,8 +843,71 @@ misclass.tab <- cbind(Methods,Misclassification)
 kable(list(`MSPE` = mspe.tab, Misclassification  = misclass.tab), 
       caption = 'Error Rates for Tree Models') %>% kable_styling(latex_options = "hold_position")
 ```
+ 
+## Final Models and Error
 
-## Final Models and error
+### Regression
+
+```{r final_ols, echo = F}
+set.seed(123)
+ols.price <- lm(log(price) ~ latitude + longitude + minimum_nights + reviews_per_month +
+                       neighbourhood_group +  room_type + calculated_host_listings_count, data = train)
+
+final.ols.pred <- predict(ols.price, bnb)
+final.ols.mspe <- mean((log(bnb$price)-final.ols.pred)^2)
+
+summary(ols.price)
+```
+
+The final mean squared prediction error, `r final.ols.mspe`, of the model is slightly higher than some of the more complex models. This choice was made for our final model because the model is simpler and more efficient with larger datasets. While the accuracy is slightly decreased, it is not a large enough difference where we would consider another, more accurate model. Another reason for choosing the linear model is because of the ability to interpret the coefficients. Some of the more significant coefficients can be interpreted below:
+
+*Note*: All interpretations are given all other predictors are held constant.
+
+* **Latitude**: A one unit increase in latitude results in a `r (exp(-1.108)-1)*100`% decrease in the price of the listing.
+* **Longitude**: A one unit increase in longitude results in a `r (exp(-2.569)-1)*100`% decrease in the price of the listing.
+* **Neighbourhood Group**: 
+  * Being in the *Brooklyn* neighbourhood group results in the price of the listing being `r (exp(-.07379)-1)*100`% lower than a listing in the Bronx.  
+  * Being in the *Manhattan* neighbourhood group results in the price of the listing being `r (exp(.3154)-1)*100`% higher than a listing in the Bronx.  
+  * Being in the *Queens* neighbourhood group results in the price of the listing being `r (exp(.05742)-1)*100`% higher than a listing in the Bronx.  
+  * Being in the *Stanten Island* neighbourhood group results in the price of the listing being `r (exp(-.6991)-1)*100`% lower than a listing in the Bronx.  
+* **Room Type**
+  * Being a *Private Room* results in the price of the listing being `r (exp(-.7491)-1)*100`% lower than whole apartment or house listing.  
+  * Being a *Shared Room* results in the price of the listing being `r (exp(-1.166)-1)*100`% lower than whole apartment or house listing.  
+* **Calculated Host Listing Count**:  A one unit increase in longitude results in a `r (exp(.0005089)-1)*100`% decrease in the price of the listing.
+
+### Classification
+
+```{r final_logit, echo = F}
+set.seed(123)
+final.logit <- glm(price_above ~longitude + latitude + minimum_nights + 
+                   reviews_per_month + calculated_host_listings_count + room_type + 
+                   neighbourhood_group, data=train, family=binomial('logit'))
+
+final.logit.pred <- predict(final.logit, bnb, type="response")
+final.logit.pred <- ifelse(final.logit.pred>.43, 1, 0)
+final.logit.misclass <- mean(final.logit.pred!=bnb$price_above)
+
+kable(list(table = table(predicted = final.logit.pred,true = bnb$price_above)), caption = 'Confusion Matrix') %>% 
+  kable_styling(latex_options = "hold_position")
+```
+
+The logistic regression model ended up being the best choice for our classification model. As with the regression model, the misclassification error rate, `r final.logit.misclass`, was slightly higher than some of the more complex models, but we decided to choose the simpler model at a small penalty to misclassification rate. We can interpret the most important coefficients as follows:
+
+*Note*: All interpretations are given all other predictors are held constant.
+
+* **Latitude**: A one unit increase in latitude results in a -4.699 decrease in the log-odds of the listing price being above the median. 
+* **Longitude**: A one unit increase in longitude results in a -13.08 decrease in the log-odds of the listing price being above the median. 
+* **Minimum Nights**: A one unit increase in the minimum amount of nights results in a decrease of -.002933 of the listing price being above the median.
+* **Neighbourhood Group**: 
+  * Being in the *Brooklyn* neighbourhood group results in the log-odds of the price being below the median to be reduced by -.1586, compared to being a listing in the Bronx.
+  * Being in the *Manhattan* neighbourhood group results in the log-odds of the price being below the median to be increased by 1.411, compared to being a listing in the Bronx.
+  * Being in the *Queens* neighbourhood group results in the log-odds of the price being below the median to be increased by .5048, compared to being a listing in the Bronx.  
+  * Being in the *Stanten Island* neighbourhood group results in the log-odds of the price being below the median to be reduced by -3.371, compared to being a listing in the Bronx.
+* **Room Type**
+  * Being a *Private Room* results in the log-odds of the price being below the median to be reduced by -3.078, compared to a whole apartment or house listing.  
+  * Being a *Shared Room* results in the log-odds of the price being below the median to be reduced by -4.019, compared to a whole apartment or house listing.  
+* **Calculated Host Listing Count**:  A one unit increase in longitude results in a .00375 increase in the price of the listing.
+
 # Appendix
 
 ```{r ref.label="library", eval = F}
