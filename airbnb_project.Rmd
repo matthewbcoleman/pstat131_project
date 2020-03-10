@@ -819,15 +819,15 @@ Lasso$beta[, lambda.indL]
 xTrain <- num.feat %>% dplyr::select(-c(price,lprice)) %>% as.matrix()
 yTrain <- num.feat$lprice
 # Fit model using the best lambda from above
-proRidgeT <- glmnet(x = xTrain, y = yTrain, alpha = 0, lambda = lambda.best)
+proLassoT <- glmnet(x = xTrain, y = yTrain, alpha = 1, lambda = lambda.best)
 # Use testing data and fitted model to predict
 XTest <- test %>%  dplyr::select(longitude, latitude, minimum_nights, number_of_reviews, 
                                     reviews_per_month, calculated_host_listings_count) %>% as.matrix()
 yTest <- log(test$price)
-yPredRidge <- proRidgeT$a0 + XTest%*%proRidgeT$beta
+yPredLasso <- proLassoT$a0 + XTest%*%proLassoT$beta
 # Compute mean-squared prediction error
-proMSPE.Ridge <- mean((yTest - yPredRidge@x)^2)
-proMSPE.Ridge
+proMSPE.Lasso <- mean((yTest - yPredLasso@x)^2)
+proMSPE.Lasso
 ```
 
 # Conclusion
