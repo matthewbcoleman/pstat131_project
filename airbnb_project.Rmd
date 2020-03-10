@@ -127,6 +127,8 @@ pairs(num.feat)
 # Abstract
 
 # Introduction
+This project was conducted to predict the prices of Airbnb rentals in New York City. We aimed to compare parametric and non-parametric supervised machine learning models to select the ones with the lowest MSE and misclassification rates. 
+
 
 # Methods
 
@@ -226,7 +228,7 @@ $$\hat{\beta}_{ridge} = \underset{\beta}{argmin}[||Y-XB||^2 + \lambda\sum_{j=1}^
   
 $$\hat{\beta}_{ridge} = \underset{\beta}{argmin}[\ ||Y-XB||^2 + \lambda\sum_{j=1}^p|\beta_j|\ ]$$
 
-By using these two methods, we can try to reduce our estimates for the linear model by imposing some Bias on our estimates for $\beta$. Another benefit of using Lasso regression is that we can also perform model selection, making a simpler model. For choice of an optimal $\lambda$, we will use cross validation. 
+By using these two methods, we can try to reduce our estimates for the linear model by imposing some Bias on our estimates for $\beta$. Another benefit of using Lasso regression is that we can also perform model selection, making a simpler model.
 
 * Tree Methods
 
@@ -259,12 +261,13 @@ Methods used to predict whether a listings price is above the median:
   
 * SVM: We will fit support vector machines with different kernels (Linear, Polynomial, Radial). In order to select the best possible support vector machines, we will use k-fold cross validation to tune the cost parameter to obtain the lowest misclassification rate. 
 
-* KNN: We will fit a K-Nearest Neighbors model with optimal K selected by cross validation. 
+* KNN: We will fit a K-Nearest Neighbours model with optimal K selected by cross validation. 
 
 
 # Analysis and Discussion
 
 ## Linear Models
+
 ```{r ols, echo = F}
 set.seed(123)
 ols.price <- lm(log(price) ~ latitude + longitude + minimum_nights + reviews_per_month +
@@ -274,6 +277,7 @@ ols.pred <- predict(ols.price, test)
 ols.mspe <- mean((log(test$price)-ols.pred)^2)
 ols.mspe
 
+#summary(ols.price)
 ```
 
 ```{r logit, echo = F}
@@ -294,7 +298,7 @@ plot(perf, col=2, lwd=3, main="ROC curve")
 abline(0,1)
 
 auc = performance(pred, "auc")@y.values
-auc
+
 ```
 
 ## Discriminant Analysis
@@ -641,7 +645,7 @@ plot(rbind(train, test)$latitude,
 * Support Vectors: 4598
 
 Below is a preliminary plot of a linear kernel SVM model fit off of latitude and longitude. After including other predictors including `neighbourhood_group`, `minimum_nights`, `room_type`, `number_of_reviews`, `calculated_host_listings_count`, `availability_365`, and using 10-fold cross validation to select the best cost parameter, we obtain a cost parameter with value 0.06. This gives us a test misclassification rate of 0.1867757.
-```{r}
+```{r, echo=FALSE}
 # determine approximate best cost parameter
 # tune.linear <- tune(svm, price_above ~ latitude+longitude, data = train, kernel = "linear", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
 # increase precision of cost parameter
@@ -667,18 +671,18 @@ pred.linear <- predict(best.linear, test)
 
 # confusion matrix
 conf.linear <- table(obs = test$price_above, pred = pred.linear)
-(acc.linear <- 1 - sum(diag(conf.linear)/sum(conf.linear)))
+acc.linear <- 1 - sum(diag(conf.linear)/sum(conf.linear))
 
 ```
 
 ### Best Polynomial Kernel SVM
-* Misclass. Rate: 0.5132924
+* Misclass. Rate: 0.1724608
 * Cost Parameter: 100
 * Degree: 3
 * Support Vectors: 5737
 
-Below is a plot of a polynomial kernel SVM decision boundary fit off of `longitude` and `latitude`. Fitting the model with identical predictors as our linear kernel SVM and using 10-fold cross validation, we obtain an optimal cost parameter value of 100. Our test misclassification rate is 0.5132924.
-```{r}
+Below is a plot of a polynomial kernel SVM decision boundary fit off of `longitude` and `latitude`. Fitting the model with identical predictors as our linear kernel SVM and using 10-fold cross validation, we obtain an optimal cost parameter value of 100. Our test misclassification rate is 0.1724608
+```{r, echo=FALSE}
 # tune.poly <- tune(svm, price_above ~ longitude
 #                     +latitude
 #                     +neighbourhood_group
@@ -703,7 +707,7 @@ pred.poly <- predict(best.poly, test)
 
 # confusion matrix
 conf.poly <- table(obs = test$price_above, pred = as.factor(pred.poly))
-(acc.poly <- 1 - sum(diag(conf.poly)/sum(conf.poly)))
+acc.poly <- 1 - sum(diag(conf.poly)/sum(conf.poly))
 ```
 
 ### Best Radial Kernel SVM
@@ -711,16 +715,16 @@ conf.poly <- table(obs = test$price_above, pred = as.factor(pred.poly))
 * Cost Parameter: 8
 * Support Vectors: 3615
 Below is a plot of the decision boundary of a radial kernel SVM fit on `latitude` and `longitude`. Fitting a model with identical parameters as the previous two models, we obtain a cost parameter value of 8 through 10-fold cross validation. Our test misclassification rate is 0.1785958.
-```{r}
+```{r, echo=FALSE}
 # tune.rad <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "radial", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
-tune.rad <- tune(svm, price_above ~ longitude
-                    +latitude
-                    +neighbourhood_group
-                    +minimum_nights
-                    +room_type
-                    +number_of_reviews
-                    +calculated_host_listings_count
-                    +availability_365, data = train, kernel = "radial", ranges = list(cost = seq(8, 11, 1)))
+# tune.rad <- tune(svm, price_above ~ longitude
+#                     +latitude
+#                     +neighbourhood_group
+#                     +minimum_nights
+#                     +room_type
+#                     +number_of_reviews
+#                     +calculated_host_listings_count
+#                     +availability_365, data = train, kernel = "radial", ranges = list(cost = seq(8, 11, 1)))
 plot(svm(price_above ~ longitude+latitude, data = train, kernel = "radial", cost = 8), test[,c("price_above", "latitude", "longitude")])
 best.rad <- svm(price_above ~ longitude
                     +latitude
@@ -732,12 +736,12 @@ best.rad <- svm(price_above ~ longitude
                     +availability_365, data = train, kernel = "radial", cost = 8)
 pred.rad <- predict(best.rad, test)
 conf.rad <- table(obs=test$price_above, pred=pred.rad)
-(acc.rad <- 1 - sum(diag(conf.rad)/sum(conf.rad)))
+acc.rad <- 1 - sum(diag(conf.rad)/sum(conf.rad))
 ```
 
 
 ## KNN
-Using cross validation to find k such that the cross validated error is minimized, we find that k = 27 gives us the minimum cross validated error of 0.1642808.
+Using cross validation to find k such that the misclassification rate is minimized, we find that k = 27 gives us the minimum misclassification rate of 0.1642808. In the plot below, accuracy is maximized at k = 27.
 
 ```{r}
 set.seed(3)
@@ -748,18 +752,19 @@ plot(knn.caret)
 ```{r}
 pred.knn <- predict(knn.caret, test)
 
-(conf.matrix <- table(pred = pred.knn, obs = test$price_above))
-1 - sum(diag(conf.matrix))/sum(conf.matrix)
+conf.matrix <- table(pred = pred.knn, obs = test$price_above)
+acc.knn <- 1 - sum(diag(conf.matrix))/sum(conf.matrix)
 ```
 
-##Regularization
+## Regularization
 
 ###Ridge Regression
-```{r glmnet,faraway}
+```{r glmnet}
 
-X <- data.matrix(train)
+
+X <- data.matrix(num.feat)
 #X <- X[,-c(10,2,4,5,6,9,13,14)]
-y <- log(bnb$price)
+y <- log(train$price)
 Ridge <- glmnet(x = X, y = y, alpha = 0)
 RidgeCV <- cv.glmnet(x = X, y = y, alpha = 0, lambda = Ridge$lambda, nfolds = 10)
 lambda.ind <- which.min(RidgeCV$cvm)
@@ -768,33 +773,81 @@ lambda.best
 Ridge$beta[, lambda.ind]
 
 
-#XTrain <- X[train.ind,]
-#yTrain <- y[train.ind]
-#RidgeTr <- glmnet(x = XTrain, y = yTrain, alpha = 0, lambda = lambda.best)
-#XTest <- X[-train.ind,]
-#yTest <- y[-train.ind]
-#Ridge.pred <- Ridge$a0 + XTest%*%RidgeTr$beta
+xTrain <- num.feat %>% dplyr::select(-c(price,lprice)) %>% as.matrix()
+yTrain <- num.feat$lprice
+# Fit model using the best lambda from above
+proRidgeT <- glmnet(x = xTrain, y = yTrain, alpha = 0, lambda = lambda.best)
+# Use testing data and fitted model to predict
+XTest <- test %>%  dplyr::select(longitude, latitude, minimum_nights, number_of_reviews, 
+                                    reviews_per_month, calculated_host_listings_count) %>% as.matrix()
+yTest <- log(test$price)
+yPredRidge <- proRidgeT$a0 + XTest%*%proRidgeT$beta
+# Compute mean-squared prediction error
+proMSPE.Ridge <- mean((yTest - yPredRidge@x)^2)
+proMSPE.Ridge
 
 ```
 
 ###Lasso
-```{r glmnet,faraway}
+```{r glmnet}
 X <- data.matrix(bnb)
 X <- X[,-c(10,2,4,5,6,9,13,14)]
 y <- log(bnb$price)
+
+X <- num.feat %>% 
 Lasso <- glmnet(x = X, y = y, alpha = 1)
+
+
 LassoCV <- cv.glmnet(x = X, y = y, alpha = 1, lambda = Lasso$lambda, nfolds = 10)
 lambda.indL <- which.min(LassoCV$cvm)
 lambda.bestL <- Lasso$lambda[lambda.indL]
 lambda.bestL
 Lasso$beta[, lambda.indL]
 
-
+xTrain <- num.feat %>% dplyr::select(-c(price,lprice)) %>% as.matrix()
+yTrain <- num.feat$lprice
+# Fit model using the best lambda from above
+proLassoT <- glmnet(x = xTrain, y = yTrain, alpha = 1, lambda = lambda.best)
+# Use testing data and fitted model to predict
+XTest <- test %>%  dplyr::select(longitude, latitude, minimum_nights, number_of_reviews, 
+                                    reviews_per_month, calculated_host_listings_count) %>% as.matrix()
+yTest <- log(test$price)
+yPredLasso <- proLassoT$a0 + XTest%*%proLassoT$beta
+# Compute mean-squared prediction error
+proMSPE.Lasso <- mean((yTest - yPredLasso@x)^2)
+proMSPE.Lasso
 ```
 
 # Conclusion
 
-There were many considerations to be taken into account when selecting our final model. First, we had to consider the accuracy of the model; if our test error rate was too high, then there would be no reason for us to implement a poorly-constructed model. Next was model complexity: we could use a model with multiple predictors and parameters, decreasing the error rate of our model, but in
+There were many considerations to be taken into account when selecting our final model. First, we had to consider the accuracy of the model; if our test error rate was too high, there would be no reason for to implement a poorly-constructed model. Next was model complexity: we could use a model with multiple predictors and parameters, decreasing the error rate of our model, but increasing the variance, or we could contstruct a simpler model with more bias, but lower variability. Choosing a simpler model would allow us to use our model in a larger setting and achieve similar test error rates. We can compare the test error rates of our different models and determine a best model.
+
+## Tree Error Rates
+
+```{r tree_tables, echo = FALSE}
+Methods <- c('Tree','Bagging','Boosting', 'Random Forest', 'Reduced Random Forest')
+MSPE <- round(c(tree.mspe, bag.mspe, boost.mspe, rf.mspe, rfr.reg.mspe),6)
+Misclassification <- round(c(tree.class.misclass, bag.misclass ,boost.misclass, rf.misclass, rfr.misclass), 6)
+
+mspe.tab  <- cbind(Methods,MSPE)
+misclass.tab <- cbind(Methods,Misclassification)
+
+kable(list(`MSPE` = mspe.tab, Misclassification  = misclass.tab), 
+      caption = 'Error Rates for Tree Models') %>% kable_styling(latex_options = "hold_position")
+```
+
+
+```{r}
+Methods <- c("Linear Kernel SVM", "Polynomial Kernel SVM", "Radial Kernel SVM", "KNN")
+Misclassification <- round(c(acc.linear, acc.poly, acc.rad, acc.knn), 6)
+
+misclass.tab <- cbind(Methods,Misclassification)
+
+kable(list(`Misclassification`  = misclass.tab), 
+      caption = 'Misclassification Rates for SVM and KNN') %>% kable_styling(latex_options = "hold_position")
+```
+
+## Final Models and error
 
 # Appendix
 
