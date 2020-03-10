@@ -798,14 +798,12 @@ lambda.bestL
 Lasso$beta[, lambda.indL]
 
 
-# Fit model using the best lambda from above
+
 proLassoT <- glmnet(x = xTrain, y = yTrain, alpha = 1, lambda = lambda.best)
-# Use testing data and fitted model to predict
 XTest <- test %>%  dplyr::select(longitude, latitude, minimum_nights, number_of_reviews, 
                                     reviews_per_month, calculated_host_listings_count) %>% as.matrix()
 yTest <- log(test$price)
 yPredLasso <- proLassoT$a0 + XTest%*%proLassoT$beta
-# Compute mean-squared prediction error
 proMSPE.Lasso <- mean((yTest - yPredLasso@x)^2)
 proMSPE.Lasso
 ```
