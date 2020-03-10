@@ -242,7 +242,7 @@ By using these two methods, we can try to reduce our estimates for the linear mo
 
 Methods used to predict whether a listings price is above the median:
 
-* Logistic Regression
+* Logistic Regression: We will fit a logistic regression model on all variables of interest,using a binary classification output to predict whether a listing's price is above or below the median.
 * LDA
 * QDA
 
@@ -287,6 +287,14 @@ fit.pred <- predict(logit.fit, test, type="response")
 fit.pred <- ifelse(fit.pred>.5, 1, 0)
 table(fit.pred,test$price_above)
 mean(fit.pred!=test$price_above)
+
+pred <- prediction(fit.pred, test$price_above)
+perf <- performance(pred, "tpr","fpr")
+plot(perf, col=2, lwd=3, main="ROC curve")
+abline(0,1)
+
+auc = performance(pred, "auc")@y.values
+auc
 ```
 
 ## Discriminant Analysis
