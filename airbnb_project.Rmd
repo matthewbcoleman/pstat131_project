@@ -139,8 +139,8 @@ pairs(num.feat)
 # Abstract
 
 # Introduction
-This project was conducted to predict the prices of Airbnb rentals in New York City. We aimed to compare parametric and non-parametric supervised machine learning models to select the ones with the lowest MSE and misclassification rates. 
 
+This project was conducted to predict the prices of Airbnb rentals in New York City. We aimed to compare parametric and non-parametric supervised machine learning models to select the ones with the lowest MSE and misclassification rates. 
 
 # Methods
 
@@ -258,7 +258,9 @@ By using these two methods, we can try to reduce our estimates for the linear mo
 Methods used to predict whether a listings price is above the median:
 
 * Logistic Regression: We will fit a logistic regression model on all variables of interest,using a binary classification output to predict whether a listing's price is above or below the median.
+
 * LDA: We will fit an LDA model on all variables of interest (assuming a Gaussian distribution), using a binary classification output to determine whether a listing's price is above or below the median. Additionally, LDA assumes equal variances in each group.
+
 * QDA: We will fit a QDA model on all variables using the same binary classification and compare effectiveness to the LDA model.
 
 * Tree Methods
@@ -274,7 +276,6 @@ Methods used to predict whether a listings price is above the median:
 * SVM: We will fit support vector machines with different kernels (Linear, Polynomial, Radial). In order to select the best possible support vector machines, we will use k-fold cross validation to tune the cost parameter to obtain the lowest misclassification rate. 
 
 * KNN: We will fit a K-Nearest Neighbours model with optimal K selected by cross validation. 
-
 
 # Analysis and Discussion
 
@@ -300,16 +301,59 @@ logit.fit <- glm(price_above ~longitude + latitude+ minimum_nights+ calculated_h
                  family=binomial('logit'))
 
 fit.pred <- predict(logit.fit, test, type="response")
-fit.pred <- ifelse(fit.pred>.5, 1, 0)
-table(fit.pred,test$price_above)
-mean(fit.pred!=test$price_above)
 
+#Finding the best threshold value
+# thresh <- seq(0,1,.01)
+# miss <- NULL
+# 
+# for(t in thresh){
+#   fit.pred.lab <- ifelse(fit.pred>t, 1, 0)
+#   err <- mean(fit.pred.lab!=test$price_above)
+#   miss  <- append(miss, err)
+# }
+# 
+# best.thresh  <- thresh[which.min(miss)]
+
+#table(fit.pred,test$price_above)
 pred <- prediction(fit.pred, test$price_above)
 perf <- performance(pred, "tpr","fpr")
 plot(perf, col=2, lwd=3, main="ROC curve")
 abline(0,1)
 
 auc = performance(pred, "auc")@y.values
+```
+
+The ROC curve above shows how the true positive rate and false positive rate change based on the threshold we choose. The AUC for our logistic classifier is `r auc`, demonstrating our classifier is very good. Now, we can find the best threshold value for out logistic model:
+
+```{r fpr, echo = F}
+fpr = performance(pred, "fpr")@y.values[[1]] 
+cutoff = performance(pred, "fpr")@x.values[[1]] 
+fnr = performance(pred,"fnr")@y.values[[1]]
+
+rate = as.data.frame(cbind(Cutoff=cutoff, FPR=fpr, FNR=fnr)) 
+rate$distance = sqrt((rate[,2])^2+(rate[,3])^2)
+
+index = which.min(rate$distance) 
+best.thresh = rate$Cutoff[index]
+
+matplot(cutoff, cbind(fpr,fnr), type="l",lwd=2, xlab="Threshold",ylab="Error Rate") 
+legend(0.3, 1, legend=c("False Positive Rate","False Negative Rate"),
+col=c(1,2), lty=c(1,2))
+abline(v=best, col=3, lty=3, lwd=3)
+```
+
+```{r final_train_logit, echo = F}
+set.seed(123)
+logit.fit <- glm(price_above ~longitude + latitude+ minimum_nights+ calculated_host_listings_count+ 
+                    reviews_per_month + room_type + neighbourhood_group, data=train,
+                 family=binomial('logit'))
+
+fit.pred <- predict(logit.fit, test, type="response")
+
+logit.pred.best <- ifelse(fit.pred>best.thresh, 1, 0)
+logit.miss <- mean(logit.pred.best!=test$price_above)
+
+table(Predicted = logit.pred.best, True = test$price_above)
 
 ```
 
@@ -328,12 +372,12 @@ lda.fit <- lda(price_above ~
                + neighbourhood_group
                ,
                data=train)
-lda.fit
+#lda.fit
 
 yhat <- predict(lda.fit, test)$class
 tr.tbl <- table(obs=test$price_above,pred=yhat)
-tr.tbl
-mean(yhat != test$price_above)
+#tr.tbl
+lda.miss <- mean(yhat != test$price_above)
 ```
 
 ``` {r qda, echo = F}
@@ -350,8 +394,8 @@ qda.fit
 
 yhat <- predict(qda.fit)$class
 tr.tbl <- table(obs=train$price_above,pred=yhat)
-tr.tbl
-1-sum(diag(tr.tbl))/sum(tr.tbl)
+#tr.tbl
+qda.miss <- 1-sum(diag(tr.tbl))/sum(tr.tbl)
 ```
 
 ## Tree-based Methods
@@ -639,7 +683,7 @@ The table with all the tree method error rate shows there is not a clear "best m
 
 In order to gain a rudimentary understanding of our data, we plotted a scatterplot Airbnb properties in New York coded by price above or below the median. It appears that the price of properties is noticably higher along waterfront properties. 
 
-```{r SVMprep}
+```{r SVMprep, echo = F}
 
 train$price_above <- as.factor(train$price_above)
 
@@ -658,6 +702,7 @@ plot(rbind(train, test)$latitude,
 * Support Vectors: 4598
 
 Below is a preliminary plot of a linear kernel SVM model fit off of latitude and longitude. After including other predictors including `neighbourhood_group`, `minimum_nights`, `room_type`, `number_of_reviews`, `calculated_host_listings_count`, `availability_365`, and using 10-fold cross validation to select the best cost parameter, we obtain a cost parameter with value 0.06. This gives us a test misclassification rate of 0.1867757.
+
 ```{r SVMlinear, echo=FALSE}
 # determine approximate best cost parameter
 # tune.linear <- tune(svm, price_above ~ latitude+longitude, data = train, kernel = "linear", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
@@ -695,7 +740,8 @@ acc.linear <- 1 - sum(diag(conf.linear)/sum(conf.linear))
 * Support Vectors: 5737
 
 Below is a plot of a polynomial kernel SVM decision boundary fit off of `longitude` and `latitude`. Fitting the model with identical predictors as our linear kernel SVM and using 10-fold cross validation, we obtain an optimal cost parameter value of 100. Our test misclassification rate is 0.1724608
-```{r SVMpoly, echo=FALSE}
+
+```{r SVMpoly, echo=FALSE, warning=FALSE}
 # tune.poly <- tune(svm, price_above ~ longitude
 #                     +latitude
 #                     +neighbourhood_group
@@ -706,7 +752,8 @@ Below is a plot of a polynomial kernel SVM decision boundary fit off of `longitu
 #                     +calculated_host_listings_count
 #                     +availability_365, data = train, kernel = "polynomial", ranges = list(cost = c(100, 1000, 10000)))
 
-plot(svm(price_above ~ longitude+latitude, data = train, kernel = "polynomial", cost = 100), test[,c("price_above", "longitude", "latitude")])
+plot(svm(price_above ~ longitude + latitude, data = train, kernel = "polynomial", cost = 100), 
+     test[,c("price_above", "longitude", "latitude")])
 best.poly <- svm(price_above ~ longitude
                     +latitude
                     +neighbourhood_group
@@ -728,6 +775,7 @@ acc.poly <- 1 - sum(diag(conf.poly)/sum(conf.poly))
 * Cost Parameter: 8
 * Support Vectors: 3615
 Below is a plot of the decision boundary of a radial kernel SVM fit on `latitude` and `longitude`. Fitting a model with identical parameters as the previous two models, we obtain a cost parameter value of 8 through 10-fold cross validation. Our test misclassification rate is 0.1785958.
+
 ```{r SVMrad, echo=FALSE}
 # tune.rad <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "radial", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
 # tune.rad <- tune(svm, price_above ~ longitude
@@ -754,11 +802,12 @@ acc.rad <- 1 - sum(diag(conf.rad)/sum(conf.rad))
 
 
 ## KNN
+
 Using cross validation to find k such that the misclassification rate is minimized, we find that k = 27 gives us the minimum misclassification rate of 0.1642808. In the plot below, accuracy is maximized at k = 27.
 
 ```{r KNN}
 set.seed(3)
-knn.caret <- train(price_above ~ neighbourhood_group+latitude+longitude+room_type+minimum_nights+number_of_reviews+calculated_host_listings_count+availability_365, data = train, method = "knn", trControl = trainControl("cv", number = 10), preProcess = c("center","scale"), tuneLength = 20)
+knn.caret <- train(as.factor(price_above) ~ neighbourhood_group+latitude+longitude+room_type+minimum_nights+number_of_reviews+calculated_host_listings_count+availability_365, data = train, method = "knn", trControl = trainControl("cv", number = 10), preProcess = c("center","scale"), tuneLength = 20)
 plot(knn.caret)
 ```
 
@@ -800,16 +849,6 @@ proMSPE.Ridge
 
 
 ### Lasso
-```{r lasso}
-X <- data.matrix(bnb)
-X <- X[,-c(10,2,4,5,6,9,13,14)]
-y <- log(bnb$price)
-
-#X <- num.feat %>% 
-Lasso <- glmnet(x = X, y = y, alpha = 1)
-
-###Lasso
-```
 
 ```{r lasso, echo = F}
 xTrain <- num.feat %>% dplyr::select(-c(price,lprice)) %>% as.matrix()
@@ -840,8 +879,21 @@ The test MSE for ridge and lasso regression were both aroun 0.42. It makes sense
 
 There were many considerations to be taken into account when selecting our final model. First, we had to consider the accuracy of the model; if our test error rate was too high, there would be no reason for to implement a poorly-constructed model. Next was model complexity: we could use a model with multiple predictors and parameters, decreasing the error rate of our model, but increasing the variance, or we could contstruct a simpler model with more bias, but lower variability. Choosing a simpler model would allow us to use our model in a larger setting and achieve similar test error rates. We can compare the test error rates of our different models and determine a best model.
 
-## Tree Error Rates
- 
+## Error Rates
+
+### Linear Models
+
+```{r}
+ols.tab <- data.frame(Method = 'OLS', MSPE = ols.mspe)
+logit.tab <- data.frame(Method = 'Logistic', Misclass. = logit.miss)
+
+kable(list(MSPE = ols.tab, Misclassification  = logit.tab), 
+      caption = 'Error Rates for Linear Models') %>% kable_styling(latex_options = "hold_position")
+```
+
+
+### Tree Error Rates
+
 ```{r tree_tab_final, echo = FALSE}
 Methods <- c('Tree','Bagging','Boosting', 'Random Forest', 'Reduced Random Forest')
 MSPE <- round(c(tree.mspe, bag.mspe, boost.mspe, rf.mspe, rfr.reg.mspe),6)
@@ -854,7 +906,9 @@ kable(list(`MSPE` = mspe.tab, Misclassification  = misclass.tab),
       caption = 'Error Rates for Tree Models') %>% kable_styling(latex_options = "hold_position")
 ```
 
-```{r}
+### SVM and KNN Error Rates
+
+```{r svm_knn_tab, echo = F}
 Methods <- c("Linear Kernel SVM", "Polynomial Kernel SVM", "Radial Kernel SVM", "KNN")
 Misclassification <- round(c(acc.linear, acc.poly, acc.rad, acc.knn), 6)
 
@@ -864,7 +918,11 @@ kable(list(`Misclassification`  = misclass.tab),
       caption = 'Misclassification Rates for SVM and KNN') %>% kable_styling(latex_options = "hold_position")
 ```
 
- 
+```{r}
+
+```
+
+
 ## Final Models and Error
 
 ### Regression
@@ -876,8 +934,6 @@ ols.price <- lm(log(price) ~ latitude + longitude + minimum_nights + reviews_per
 
 final.ols.pred <- predict(ols.price, bnb)
 final.ols.mspe <- mean((log(bnb$price)-final.ols.pred)^2)
-
-summary(ols.price)
 ```
 
 The final mean squared prediction error, `r final.ols.mspe`, of the model is slightly higher than some of the more complex models. This choice was made for our final model because the model is simpler and more efficient with larger datasets. While the accuracy is slightly decreased, it is not a large enough difference where we would consider another, more accurate model. Another reason for choosing the linear model is because of the ability to interpret the coefficients. Some of the more significant coefficients can be interpreted below:
@@ -905,14 +961,19 @@ final.logit <- glm(price_above ~longitude + latitude + minimum_nights +
                    neighbourhood_group, data=train, family=binomial('logit'))
 
 final.logit.pred <- predict(final.logit, bnb, type="response")
-final.logit.pred <- ifelse(final.logit.pred>.43, 1, 0)
+final.logit.pred <- ifelse(final.logit.pred>best.thresh, 1, 0)
 final.logit.misclass <- mean(final.logit.pred!=bnb$price_above)
 
-kable(list(table = table(predicted = final.logit.pred,true = bnb$price_above)), caption = 'Confusion Matrix') %>% 
-  kable_styling(latex_options = "hold_position")
+#kable(list(table = table(predicted = final.logit.pred,true = bnb$price_above)), caption = 'Confusion Matrix') %>% 
+#  kable_styling(latex_options = "hold_position")
+
+log.tab <- table(Predicted = final.logit.pred,True = bnb$price_above)
+log.tab
 ```
 
-The logistic regression model ended up being the best choice for our classification model. As with the regression model, the misclassification error rate, `r final.logit.misclass`, was slightly higher than some of the more complex models, but we decided to choose the simpler model at a small penalty to misclassification rate. We can interpret the most important coefficients as follows:
+The logistic regression model ended up being the best choice for our classification model. As with the regression model, the misclassification error rate, `r final.logit.misclass`, was slightly higher than some of the more complex models, but we decided to choose the simpler model at a small penalty to misclassification rate. By searching for the best threshold, it seems setting $thresh > .5$ is the best choice. There seemed to be many more false positives than false negatives in our overall dataset predictions. As we can see from the confusion matrix of the logistic predictions, out False Postitive Rate was `r log.tab[2,1]/(log.tab[2,1] + log.tab[1,1])` and our False Negative Rate was `r log.tab[1,2]/(log.tab[2,2] + log.tab[1,2])`. 
+
+We can interpret the most important coefficients as follows:
 
 *Note*: All interpretations are given all other predictors are held constant.
 
@@ -928,6 +989,8 @@ The logistic regression model ended up being the best choice for our classificat
   * Being a *Private Room* results in the log-odds of the price being below the median to be reduced by -3.078, compared to a whole apartment or house listing.  
   * Being a *Shared Room* results in the log-odds of the price being below the median to be reduced by -4.019, compared to a whole apartment or house listing.  
 * **Calculated Host Listing Count**:  A one unit increase in longitude results in a .00375 increase in the price of the listing.
+
+### Future Research
 
 # Appendix
 
@@ -1025,6 +1088,14 @@ It does not seem there are any large disparities in pricing, and all the neighbo
 
 ```
 
+```{r ref.label="fpr", eval = F}
+
+```
+
+```{r ref.label="final_train_logit", eval = F}
+
+```
+
 ```{r ref.label="class_tree", eval = F}
 
 ```
@@ -1115,18 +1186,38 @@ There does not seem to be a discernable lambda from the plot.
 
 ```
 
-```{r ref.label="boost_lambda", eval = F}
+```{r ref.label="SVMprep", eval = F}
 
 ```
 
-```{r ref.label="boost_lambda", eval = F}
+```{r ref.label="SVMlinear", eval = F}
 
 ```
 
-```{r ref.label="boost_lambda", eval = F}
+```{r ref.label="SVMpoly", eval = F}
 
 ```
 
-```{r ref.label="boost_lambda", eval = F}
+```{r ref.label="SVMrad", eval = F}
+
+```
+
+```{r ref.label="KNN", eval = F}
+
+```
+
+```{r ref.label="KNNMisclass", eval = F}
+
+```
+
+```{r ref.label="ridge", eval = F}
+
+```
+
+```{r ref.label="lasso", eval = F}
+
+```
+
+```{r ref.label="KNN", eval = F}
 
 ```
