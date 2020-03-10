@@ -645,7 +645,7 @@ plot(rbind(train, test)$latitude,
 * Support Vectors: 4598
 
 Below is a preliminary plot of a linear kernel SVM model fit off of latitude and longitude. After including other predictors including `neighbourhood_group`, `minimum_nights`, `room_type`, `number_of_reviews`, `calculated_host_listings_count`, `availability_365`, and using 10-fold cross validation to select the best cost parameter, we obtain a cost parameter with value 0.06. This gives us a test misclassification rate of 0.1867757.
-```{r}
+```{r, echo=FALSE}
 # determine approximate best cost parameter
 # tune.linear <- tune(svm, price_above ~ latitude+longitude, data = train, kernel = "linear", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
 # increase precision of cost parameter
@@ -671,7 +671,7 @@ pred.linear <- predict(best.linear, test)
 
 # confusion matrix
 conf.linear <- table(obs = test$price_above, pred = pred.linear)
-(acc.linear <- 1 - sum(diag(conf.linear)/sum(conf.linear)))
+acc.linear <- 1 - sum(diag(conf.linear)/sum(conf.linear))
 
 ```
 
@@ -682,7 +682,7 @@ conf.linear <- table(obs = test$price_above, pred = pred.linear)
 * Support Vectors: 5737
 
 Below is a plot of a polynomial kernel SVM decision boundary fit off of `longitude` and `latitude`. Fitting the model with identical predictors as our linear kernel SVM and using 10-fold cross validation, we obtain an optimal cost parameter value of 100. Our test misclassification rate is 0.1724608
-```{r}
+```{r, echo=FALSE}
 # tune.poly <- tune(svm, price_above ~ longitude
 #                     +latitude
 #                     +neighbourhood_group
@@ -707,7 +707,7 @@ pred.poly <- predict(best.poly, test)
 
 # confusion matrix
 conf.poly <- table(obs = test$price_above, pred = as.factor(pred.poly))
-(acc.poly <- 1 - sum(diag(conf.poly)/sum(conf.poly)))
+acc.poly <- 1 - sum(diag(conf.poly)/sum(conf.poly))
 ```
 
 ### Best Radial Kernel SVM
@@ -715,7 +715,7 @@ conf.poly <- table(obs = test$price_above, pred = as.factor(pred.poly))
 * Cost Parameter: 8
 * Support Vectors: 3615
 Below is a plot of the decision boundary of a radial kernel SVM fit on `latitude` and `longitude`. Fitting a model with identical parameters as the previous two models, we obtain a cost parameter value of 8 through 10-fold cross validation. Our test misclassification rate is 0.1785958.
-```{r}
+```{r, echo=FALSE}
 # tune.rad <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "radial", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
 # tune.rad <- tune(svm, price_above ~ longitude
 #                     +latitude
@@ -736,7 +736,7 @@ best.rad <- svm(price_above ~ longitude
                     +availability_365, data = train, kernel = "radial", cost = 8)
 pred.rad <- predict(best.rad, test)
 conf.rad <- table(obs=test$price_above, pred=pred.rad)
-(acc.rad <- 1 - sum(diag(conf.rad)/sum(conf.rad)))
+acc.rad <- 1 - sum(diag(conf.rad)/sum(conf.rad))
 ```
 
 
