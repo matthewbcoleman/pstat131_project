@@ -38,6 +38,7 @@ library(MASS)
 library(kableExtra)
 library(glmnet)
 library(faraway)
+library(ROCR)
 #library(train)
 ```
 
@@ -243,8 +244,8 @@ By using these two methods, we can try to reduce our estimates for the linear mo
 Methods used to predict whether a listings price is above the median:
 
 * Logistic Regression: We will fit a logistic regression model on all variables of interest,using a binary classification output to predict whether a listing's price is above or below the median.
-* LDA
-* QDA
+* LDA: We will fit an LDA model on all variables of interest (assuming a Gaussian distribution), using a binary classification output to determine whether a listing's price is above or below the median. Additionally, LDA assumes equal variances in each group.
+* QDA: We will fit a QDA model on all variables using the same binary classification and compare effectiveness to the LDA model.
 
 * Tree Methods
 
