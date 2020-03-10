@@ -800,7 +800,6 @@ conf.rad <- table(obs=test$price_above, pred=pred.rad)
 acc.rad <- 1 - sum(diag(conf.rad)/sum(conf.rad))
 ```
 
-
 ## KNN
 
 Using cross validation to find k such that the misclassification rate is minimized, we find that k = 27 gives us the minimum misclassification rate of 0.1642808. In the plot below, accuracy is maximized at k = 27.
@@ -812,6 +811,7 @@ plot(knn.caret)
 ```
 
 ```{r KNNMisclass}
+set.seed(3)
 pred.knn <- predict(knn.caret, test)
 
 conf.matrix <- table(pred = pred.knn, obs = test$price_above)
@@ -832,8 +832,8 @@ Ridge <- glmnet(x = xTrain, y = yTrain, alpha = 0)
 RidgeCV <- cv.glmnet(x = xTrain, y = yTrain, alpha = 0, lambda = Ridge$lambda, nfolds = 10)
 lambda.ind <- which.min(RidgeCV$cvm)
 lambda.best <- Ridge$lambda[lambda.ind]
-lambda.best
-Ridge$beta[, lambda.ind]
+#lambda.best
+#Ridge$beta[, lambda.ind]
 
 
 
@@ -843,7 +843,7 @@ XTest <- test %>%  dplyr::select(longitude, latitude, minimum_nights, number_of_
 yTest <- log(test$price)
 yPredRidge <- proRidgeT$a0 + XTest%*%proRidgeT$beta
 proMSPE.Ridge <- mean((yTest - yPredRidge@x)^2)
-proMSPE.Ridge
+#proMSPE.Ridge
 
 ```
 
@@ -859,8 +859,8 @@ Lasso <- glmnet(x = xTrain, y = yTrain, alpha = 1)
 LassoCV <- cv.glmnet(x = xTrain, y = yTrain, alpha = 1, lambda = Lasso$lambda, nfolds = 10)
 lambda.indL <- which.min(LassoCV$cvm)
 lambda.bestL <- Lasso$lambda[lambda.indL]
-lambda.bestL
-Lasso$beta[, lambda.indL]
+#lambda.bestL
+#Lasso$beta[, lambda.indL]
 
 
 
@@ -870,7 +870,7 @@ XTest <- test %>%  dplyr::select(longitude, latitude, minimum_nights, number_of_
 yTest <- log(test$price)
 yPredLasso <- proLassoT$a0 + XTest%*%proLassoT$beta
 proMSPE.Lasso <- mean((yTest - yPredLasso@x)^2)
-proMSPE.Lasso
+#proMSPE.Lasso
 ```
 
 The test MSE for ridge and lasso regression were both aroun 0.42. It makes sense that these models would have worse test MSE values than other models since both ridge and lasso were unable to run with the non-numeric predictors. When we compare with the results previously, we see that some of the non-numeric (such as room-type and neighborhood group) were very important in predicting in other models.
@@ -890,7 +890,6 @@ logit.tab <- data.frame(Method = 'Logistic', Misclass. = logit.miss)
 kable(list(MSPE = ols.tab, Misclassification  = logit.tab), 
       caption = 'Error Rates for Linear Models') %>% kable_styling(latex_options = "hold_position")
 ```
-
 
 ### Tree Error Rates
 
@@ -917,6 +916,8 @@ misclass.tab <- cbind(Methods,Misclassification)
 kable(list(`Misclassification`  = misclass.tab), 
       caption = 'Misclassification Rates for SVM and KNN') %>% kable_styling(latex_options = "hold_position")
 ```
+
+### Regulatization Methods
 
 ```{r}
 
