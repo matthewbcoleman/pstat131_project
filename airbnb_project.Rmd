@@ -754,11 +754,11 @@ acc.knn <- 1 - sum(diag(conf.matrix))/sum(conf.matrix)
 ##Regularization
 
 ###Ridge Regression
-```{r glmnet,faraway}
+```{r glmnet}
 
-X <- data.matrix(train)
+X <- data.matrix(num.feat)
 #X <- X[,-c(10,2,4,5,6,9,13,14)]
-y <- log(bnb$price)
+y <- log(train$price)
 Ridge <- glmnet(x = X, y = y, alpha = 0)
 RidgeCV <- cv.glmnet(x = X, y = y, alpha = 0, lambda = Ridge$lambda, nfolds = 10)
 lambda.ind <- which.min(RidgeCV$cvm)
@@ -767,17 +767,23 @@ lambda.best
 Ridge$beta[, lambda.ind]
 
 
-#XTrain <- X[train.ind,]
-#yTrain <- y[train.ind]
-#RidgeTr <- glmnet(x = XTrain, y = yTrain, alpha = 0, lambda = lambda.best)
-#XTest <- X[-train.ind,]
-#yTest <- y[-train.ind]
-#Ridge.pred <- Ridge$a0 + XTest%*%RidgeTr$beta
+xTrain <- num.feat %>% dplyr::select(-c(price,lprice)) %>% as.matrix()
+yTrain <- num.feat$lprice
+# Fit model using the best lambda from above
+proRidgeT <- glmnet(x = xTrain, y = yTrain, alpha = 0, lambda = lambda.best)
+# Use testing data and fitted model to predict
+XTest <- test %>%  dplyr::select(longitude, latitude, minimum_nights, number_of_reviews, 
+                                    reviews_per_month, calculated_host_listings_count) %>% as.matrix()
+yTest <- log(test$price)
+yPredRidge <- proRidgeT$a0 + XTest%*%proRidgeT$beta
+# Compute mean-squared prediction error
+proMSPE.Ridge <- mean((yTest - yPredRidge@x)^2)
+proMSPE.Ridge
 
 ```
 
 ###Lasso
-```{r glmnet,faraway}
+```{r glmnet}
 X <- data.matrix(bnb)
 X <- X[,-c(10,2,4,5,6,9,13,14)]
 y <- log(bnb$price)
@@ -788,7 +794,18 @@ lambda.bestL <- Lasso$lambda[lambda.indL]
 lambda.bestL
 Lasso$beta[, lambda.indL]
 
-
+xTrain <- num.feat %>% dplyr::select(-c(price,lprice)) %>% as.matrix()
+yTrain <- num.feat$lprice
+# Fit model using the best lambda from above
+proLassoT <- glmnet(x = xTrain, y = yTrain, alpha = 1, lambda = lambda.best)
+# Use testing data and fitted model to predict
+XTest <- test %>%  dplyr::select(longitude, latitude, minimum_nights, number_of_reviews, 
+                                    reviews_per_month, calculated_host_listings_count) %>% as.matrix()
+yTest <- log(test$price)
+yPredLasso <- proLassoT$a0 + XTest%*%proLassoT$beta
+# Compute mean-squared prediction error
+proMSPE.Lasso <- mean((yTest - yPredLasso@x)^2)
+proMSPE.Lasso
 ```
 
 # Conclusion
