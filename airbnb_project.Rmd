@@ -1002,6 +1002,8 @@ We can interpret the most important coefficients as follows:
 
 ### Future Research
 
+One possible research direction for this dataset would be to use Host Name to classify each host as either male or female (or a combination of the two). One could then explore whether the host's gender played a role in predicting the amount of business the listing got or even combine that with the price to make inferences on the difference in net income from listings between genders. 
+
 # Appendix
 
 ```{r ref.label="library", eval = F}
