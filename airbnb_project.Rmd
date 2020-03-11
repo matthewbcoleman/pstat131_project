@@ -288,7 +288,7 @@ ols.price <- lm(log(price) ~ latitude + longitude + minimum_nights + reviews_per
 ols.pred <- predict(ols.price, test)
 
 ols.mspe <- mean((log(test$price)-ols.pred)^2)
-ols.mspe
+#ols.mspe
 
 #summary(ols.price)
 ```
@@ -339,8 +339,10 @@ best.thresh = rate$Cutoff[index]
 matplot(cutoff, cbind(fpr,fnr), type="l",lwd=2, xlab="Threshold",ylab="Error Rate") 
 legend(0.3, 1, legend=c("False Positive Rate","False Negative Rate"),
 col=c(1,2), lty=c(1,2))
-abline(v=best, col=3, lty=3, lwd=3)
+abline(v=best.thresh, col=3, lty=3, lwd=3)
 ```
+
+The confusion matrix outputted below gives an idea as to the distribution of predictions.
 
 ```{r final_train_logit, echo = F}
 set.seed(123)
@@ -354,7 +356,6 @@ logit.pred.best <- ifelse(fit.pred>best.thresh, 1, 0)
 logit.miss <- mean(logit.pred.best!=test$price_above)
 
 table(Predicted = logit.pred.best, True = test$price_above)
-
 ```
 
 ## Discriminant Analysis
@@ -390,13 +391,15 @@ qda.fit <- qda(price_above ~ longitude + latitude
                + neighbourhood_group
                ,
                data=train)
-qda.fit
+#qda.fit
 
 yhat <- predict(qda.fit)$class
 tr.tbl <- table(obs=train$price_above,pred=yhat)
 #tr.tbl
 qda.miss <- 1-sum(diag(tr.tbl))/sum(tr.tbl)
 ```
+
+The linear discriminant analysis misclassification rate is `r lda.miss` and the quadratic discriminant analysis MSPE is `r qda.miss`.
 
 ## Tree-based Methods
 
@@ -804,13 +807,13 @@ acc.rad <- 1 - sum(diag(conf.rad)/sum(conf.rad))
 
 Using cross validation to find k such that the misclassification rate is minimized, we find that k = 29 gives us the minimum misclassification rate of 0.1656442. In the plot below, accuracy is maximized at k = 29.
 
-```{r KNN}
+```{r KNN, echo = FALSE}
 set.seed(3)
 knn.caret <- train(as.factor(price_above) ~ neighbourhood_group+latitude+longitude+room_type+minimum_nights+number_of_reviews+calculated_host_listings_count+availability_365, data = train, method = "knn", trControl = trainControl("cv", number = 10), preProcess = c("center","scale"), tuneLength = 20)
 plot(knn.caret)
 ```
 
-```{r KNNMisclass}
+```{r KNNMisclass, echo = FALSE}
 set.seed(3)
 pred.knn <- predict(knn.caret, test)
 
@@ -820,7 +823,7 @@ acc.knn <- 1 - sum(diag(conf.matrix))/sum(conf.matrix)
 
 ## Regularization
 
-### Ridge Regression
+### Ridge and Lasso Regression
 
 ```{r ridge, echo = F}
 xTrain <- num.feat %>% dplyr::select(-c(price,lprice)) %>% as.matrix()
@@ -847,9 +850,6 @@ proMSPE.Ridge <- mean((yTest - yPredRidge@x)^2)
 
 ```
 
-
-### Lasso
-
 ```{r lasso, echo = F}
 xTrain <- num.feat %>% dplyr::select(-c(price,lprice)) %>% as.matrix()
 yTrain <- num.feat$lprice
@@ -873,7 +873,7 @@ proMSPE.Lasso <- mean((yTest - yPredLasso@x)^2)
 #proMSPE.Lasso
 ```
 
-The test MSE for ridge and lasso regression were both aroun 0.42. It makes sense that these models would have worse test MSE values than other models since both ridge and lasso were unable to run with the non-numeric predictors. When we compare with the results previously, we see that some of the non-numeric (such as room-type and neighborhood group) were very important in predicting in other models.
+The test MSE for ridge and lasso regression were both approximately 0.42. It makes sense that these models would have worse test MSE values than other models since both ridge and lasso were unable to run with the non-numeric predictors. When we compare with the previous results, we see that some of the non-numeric (such as room-type and neighborhood group) were very important in predicting in other models.
 
 # Conclusion
 
@@ -883,7 +883,7 @@ There were many considerations to be taken into account when selecting our final
 
 ### Linear Models
 
-```{r}
+```{r linear_tab, echo = FALSE}
 ols.tab <- data.frame(Method = 'OLS', MSPE = ols.mspe)
 logit.tab <- data.frame(Method = 'Logistic', Misclass. = logit.miss)
 
@@ -911,22 +911,28 @@ kable(list(`MSPE` = mspe.tab, Misclassification  = misclass.tab),
 Methods <- c("Linear Kernel SVM", "Polynomial Kernel SVM", "Radial Kernel SVM", "KNN")
 Misclassification <- round(c(acc.linear, acc.poly, acc.rad, acc.knn), 6)
 
-misclass.tab <- cbind(Methods,Misclassification)
+svm.misclass.tab <- cbind(Methods,Misclassification)
 
-kable(list(`Misclassification`  = misclass.tab), 
+kable(list(`Misclassification`  = svm.misclass.tab), 
       caption = 'Misclassification Rates for SVM and KNN') %>% kable_styling(latex_options = "hold_position")
 ```
 
 ### Regulatization Methods
 
-```{r}
+```{r regul_table, echo = FALSE}
+Methods <- c('Ridge', 'Lasso')
+MSPE <- c(proMSPE.Ridge, proMSPE.Lasso)
 
+reg.tab <- cbind(Methods,MSPE)
+kable(reg.tab, 
+      caption = 'MSPE for Regularization Methods') %>% kable_styling(latex_options = "hold_position")
 ```
-
 
 ## Final Models and Error
 
 ### Regression
+
+#### Ordinary Least Squares Regression
 
 ```{r final_ols, echo = F}
 set.seed(123)
@@ -955,6 +961,8 @@ The final mean squared prediction error, `r final.ols.mspe`, of the model is sli
 
 ### Classification
 
+#### Logistic Regression
+
 ```{r final_logit, echo = F}
 set.seed(123)
 final.logit <- glm(price_above ~longitude + latitude + minimum_nights + 
@@ -969,6 +977,7 @@ final.logit.misclass <- mean(final.logit.pred!=bnb$price_above)
 #  kable_styling(latex_options = "hold_position")
 
 log.tab <- table(Predicted = final.logit.pred,True = bnb$price_above)
+#kable(table(Predicted = final.logit.pred,True = bnb$price_above)) %>% kable_styling(latex_options = "hold_position")
 log.tab
 ```
 
@@ -1219,6 +1228,26 @@ There does not seem to be a discernable lambda from the plot.
 
 ```
 
-```{r ref.label="KNN", eval = F}
+```{r ref.label="linear_tab", eval = F}
+
+```
+
+```{r ref.label="tree_tab_final", eval = F}
+
+```
+
+```{r ref.label="svm_knn_tab", eval = F}
+
+```
+
+```{r ref.label="regul_table", eval = F}
+
+```
+
+```{r ref.label="final_ols", eval = F}
+
+```
+
+```{r ref.label="final_logit", eval = F}
 
 ```
