@@ -139,6 +139,8 @@ pairs(num.feat)
 
 # Abstract
 
+The following project was created with the purpose of predicting prices of Airbnb rentals in New York City using various machine learning models. The dataset was downloaded from Kaggle, the original source being from insideairbnb.com. Contained in the data are nearly 50,000 observations of Airbnb listings in the NYC area with a variety of attributes including price, room type, lattitude and longitude, and information on the host of said listing. Our models varied in complexity and accuracy, and no model was 100% correct, though many ended up useful. As the old adage goes, there is no free lunch, and in the end, we concluded a logistic regression was the best model as it served as the ideal combination of interpretability and accuracy.  
+
 # Introduction
 
 This project was conducted to predict the prices of Airbnb rentals in New York City. We aimed to compare parametric and non-parametric supervised machine learning models to select the ones with the lowest MSE and misclassification rates. 
