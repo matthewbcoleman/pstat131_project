@@ -9,6 +9,7 @@ output:
 header-includes:
   \usepackage{float}
   \floatplacement{figure}{H}
+urlcolor: blue
    
 ---
 
@@ -139,11 +140,11 @@ pairs(num.feat)
 
 # Abstract
 
-The following project was created with the purpose of predicting prices of Airbnb rentals in New York City using various machine learning models. The dataset was downloaded from Kaggle, the original source being from insideairbnb.com. Contained in the data are nearly 50,000 observations of Airbnb listings in the NYC area with a variety of attributes including price, room type, lattitude and longitude, and information on the host of said listing. Our models varied in complexity and accuracy, and no model was 100% correct, though many ended up useful. As the old adage goes, there is no free lunch, and in the end, we concluded a logistic regression was the best model as it served as the ideal combination of interpretability and accuracy.  
+The following project was created with the purpose of predicting prices of Airbnb rentals in New York City using various machine learning models. The dataset was downloaded from Kaggle, the original source being from insideairbnb.com, contains approximately 50,000 different Airbnb listings. Each listing had a variety of attributes including price, room type, latitude and longitude, along with information of the listing's host. Our models varied in complexity and accuracy, and no model was 100% correct, though many ended up being useful. As the old adage goes, there is no free lunch, and in the end, we concluded linear regression for log(price) prediction and logistic regression for price above median classification were the best models as it had the ideal combination of complexity, interpretability, and accuracy.  
 
 # Introduction
 
-This project was conducted to predict the prices of Airbnb rentals in New York City. We aimed to compare parametric and non-parametric supervised machine learning models to select the ones with the lowest MSE and misclassification rates. 
+There were two main goals for this project: prediction of New York City Airbnb listing prices and classification of a listing being above or below the median price. Through comparison of many parametric and non-parametric machine learning models, we hope to select the models which result in the lowest MSE and misclassification rates while also considering the complexity and interpretability of the model.
 
 # Methods
 
@@ -201,7 +202,7 @@ All atributes were complete with the exception of `last_review`, which has the d
 
 ### Assumptions.
 
-Many of our machine learning methods are very computationally intensive, so we sampled 15% of the entire dataset, and then train-test split the 15% sample into 80% training 20% test dataset. To verify this was a viable practice, we plotted the distribution of our response variable, price, and verified the distribution is the similar to the distribution of the overall dataset. The histogram is very similar, and even contains some of the outliers we can see in the overall dataset, so we assumed our smaller dataset was representative of the population.
+Many of our machine learning methods are very computationally intensive, so we sampled 15% of the entire dataset, and then train-test split the 15% sample into 80% training 20% test dataset. To verify this was a viable practice, we plotted the distribution of our response variable, price, and verified the distribution is similar to the distribution of the overall dataset. The histogram is very similar, and even contains some of the outliers we can see in the overall dataset, so we assumed our smaller dataset was representative of the population.
 
 ```{r price_hist, echo = F, fig.cap= 'Training Data Histogram'}
 par(mfrow = c(1,2))
@@ -231,6 +232,19 @@ Our overall dataset is 48895. Taking the proposed 15% split on the data left us 
 
 Methods used to predict the price of a listing:
 
+* Ordinary Least Squares: Multiple Linear Regression with log(price) as the response variable. 
+
+
+* Tree Methods
+
+  * Individual Trees: To compare the efficacy of ensemble tree methods, we will fit an individual regression tree on all variables of interest.
+  
+  * Bagging: We will fit an ensemble tree method which will grow large trees on bootstrapped data, resulting in high variance and low bias. All of these trees predictions will be averaged to give the final prediction.
+  
+  * Random Forest: We will create multiple decision trees similar to bagging, but try to decorrelate each of the bootstrap trees through selecting $m=\frac{p}{3}$ variables. 
+  
+  * Boosting: We will fit multiple (weak) trees sequentially, grown on information from the previously grown tree. Final prediction is a weighted prediction of the weak learners.
+  
 * Ridge Regression:
 
   * Constraint optimization on the least squares criterion:
@@ -244,18 +258,7 @@ $$\hat{\beta}_{ridge} = \underset{\beta}{argmin}[||Y-XB||^2 + \lambda\sum_{j=1}^
 $$\hat{\beta}_{ridge} = \underset{\beta}{argmin}[\ ||Y-XB||^2 + \lambda\sum_{j=1}^p|\beta_j|\ ]$$
 
 By using these two methods, we can try to reduce our estimates for the linear model by imposing some Bias on our estimates for $\beta$. Another benefit of using Lasso regression is that we can also perform model selection, making a simpler model.
-
-* Tree Methods
-
-  * Individual Trees: To compare the efficacy of ensemble tree methods, we will fit an individual regression tree on longitude and latitude, and then one tree on all variables of interest.
   
-  * Bagging: We will fit an ensemble tree method which will grow large trees on bootstrapped data, resulting in high variance low bias. All of these trees predictions will be averaged to give the final prediction.
-  
-  * Random Forest: We will create multiple decision trees similar to bagging, but try to decorrelate each of the bootstrap trees through selecting $m=\frac{p}{3}$ variables. 
-  
-  * Boosting: We will fit multiple (weak) trees sequentially, grown on information from the previously grown tree. Final prediction is a weighted prediction of the weak learners.
-  
-
 ### Classification Methods
 
 Methods used to predict whether a listings price is above the median:
@@ -268,9 +271,9 @@ Methods used to predict whether a listings price is above the median:
 
 * Tree Methods
 
-  * Individual Trees: To compare the efficacy of ensemble tree methods, we will fit an individual classification tree on longitude and latitude, and then one tree on all variables of interest.
+  * Individual Trees: To compare the efficacy of ensemble tree methods, we will fit an individual classification tree on all variables of interest.
   
-  * Bagging: We will fit an ensemble tree method which will grow large trees on bootstrapped data, resulting in high variance low bias. All of these trees predictions will be chosen by majority voting for the final prediction.
+  * Bagging: We will fit an ensemble tree method which will grow large trees on bootstrapped data, resulting in high variance and low bias. All of these trees predictions will be chosen by majority voting for the final prediction.
   
   * Random Forest: We will create multiple decision trees similar to bagging, but try to decorrelate each of the bootstrap trees through selecting $m=\sqrt{p}$ variables. Final predictions will be through majority voting. 
   
@@ -284,6 +287,8 @@ Methods used to predict whether a listings price is above the median:
 
 ## Linear Models
 
+### Ordinary Least Squares
+
 ```{r ols, echo = F}
 set.seed(123)
 ols.price <- lm(log(price) ~ latitude + longitude + minimum_nights + reviews_per_month +
@@ -295,6 +300,10 @@ ols.mspe <- mean((log(test$price)-ols.pred)^2)
 
 #summary(ols.price)
 ```
+
+The MSPE for out ordinary least squares model was `r ols.mspe`. This is slightly higher than some of the methods we explore. Despite this, the model is simpler.
+
+### Logistic Regression
 
 ```{r logit, echo = F}
 #initial LR model
@@ -326,9 +335,10 @@ abline(0,1)
 auc = performance(pred, "auc")@y.values
 ```
 
-The ROC curve above shows how the true positive rate and false positive rate change based on the threshold we choose. The AUC for our logistic classifier is `r auc`, demonstrating our classifier is very good. Now, we can find the best threshold value for out logistic model:
+The ROC curve above shows how the true positive rate and false positive rate change based on the threshold we choose. The AUC for our logistic classifier is `r auc`, demonstrating our classifier is very good. Now, we can find the best threshold value for our logistic model:
 
 ```{r fpr, echo = F}
+set.seed(123)
 fpr = performance(pred, "fpr")@y.values[[1]] 
 cutoff = performance(pred, "fpr")@x.values[[1]] 
 fnr = performance(pred,"fnr")@y.values[[1]]
@@ -344,6 +354,8 @@ legend(0.3, 1, legend=c("False Positive Rate","False Negative Rate"),
 col=c(1,2), lty=c(1,2))
 abline(v=best.thresh, col=3, lty=3, lwd=3)
 ```
+
+Using the ROC curve we were able to find out the best threshold value to reduce the distance between the FPR and FNR. This threshold value was `r best.thresh`.
 
 The confusion matrix outputted below gives an idea as to the distribution of predictions.
 
@@ -402,7 +414,7 @@ tr.tbl <- table(obs=train$price_above,pred=yhat)
 qda.miss <- 1-sum(diag(tr.tbl))/sum(tr.tbl)
 ```
 
-The linear discriminant analysis misclassification rate is `r lda.miss` and the quadratic discriminant analysis MSPE is `r qda.miss`.
+The linear discriminant analysis misclassification rate is `r lda.miss` and the quadratic discriminant analysis MSPE is `r qda.miss`. These are very similar to the other classification methods we explore in our analysis.
 
 ## Tree-based Methods
 
@@ -491,7 +503,7 @@ cv.rf <- rfcv(rf.cv.trainx,rf.cv.trainy, cv.fold = 5)
 plot(cv.rf$n.var, cv.rf$error.cv, type = 'b', xlab = 'Number of Variables in Model', ylab = 'Cross-Validation Error')
 ```
 
-Through cross validation, we were able to determine 4 variables in the model leads to the greatest decrease in the cross-validation error while accounting for model complexity. To choose the 4 variables to use in the reduced random forest model, I used the criteria of greatest variable importance from above. This means we chose room type, longitude, latitude, and reviews per month for the classification model and room type, longitude, latitude, and neighbourhood group of a regression model.
+Through cross validation, we were able to determine 4 variables in the model leads to the greatest decrease in the cross-validation error while accounting for model complexity. To choose the 4 variables we would use in the reduced random forest model, I used the criteria of greatest variable importance from above. This means we chose room type, longitude, latitude, and reviews per month for the classification model and room type, longitude, latitude, and neighbourhood group of a regression model.
 
 ```{r red_rf, echo = F}
 set.seed(123)
@@ -613,7 +625,7 @@ best.class.lambda = 0.1
 
 As with the regression boosting model, the misclassification error rate does not seem to be at a minimum for any value of lambda, so we will also choose the default value for $\lambda$.
 
-The other parameter tuned for the boosing model was the number of trees used.
+The other parameter tuned for the boosting model was the number of trees used.
 
 ```{r ntree, echo = F}
 set.seed(123)
@@ -636,7 +648,7 @@ plot(ntrees, tree.err, type = 'b', ylab = 'Boosted MSPE', xlab = 'Trees',
 best.tree <- ntrees[which.min(tree.err)]
 ```
 
-The MSPE was the lowest for the model with 1500 trees, so we implemented this into the final boosting model.
+The MSPE was the lowest for the model with `r best.tree` trees, so we implemented this into the final boosting model.
 
 ```{r end_class_boost, echo = F}
 set.seed(123)
@@ -687,7 +699,7 @@ The table with all the tree method error rate shows there is not a clear "best m
 
 ## SVM
 
-In order to gain a rudimentary understanding of our data, we plotted a scatterplot Airbnb properties in New York coded by price above or below the median. It appears that the price of properties is noticably higher along waterfront properties. 
+In order to gain a rudimentary understanding of our data, we plotted a scatterplot of the listings coded by price above or below the median. It appears that the price of properties is noticably higher along waterfront properties. 
 
 ```{r SVMprep, echo = F}
 
@@ -740,12 +752,13 @@ acc.linear <- 1 - sum(diag(conf.linear)/sum(conf.linear))
 ```
 
 ### Best Polynomial Kernel SVM
+
 * Misclass. Rate: 0.1724608
 * Cost Parameter: 100
 * Degree: 3
 * Support Vectors: 5737
 
-Below is a plot of a polynomial kernel SVM decision boundary fit off of `longitude` and `latitude`. Fitting the model with identical predictors as our linear kernel SVM and using 10-fold cross validation, we obtain an optimal cost parameter value of 100. Our test misclassification rate is 0.1724608
+Below is a plot of a polynomial kernel SVM decision boundary fit off of `longitude` and `latitude`. Fitting the model with the same predictors as our linear kernel and using 10-fold cross validation, we obtain an optimal cost parameter value of 100. Our test misclassification rate is 0.1724608.
 
 ```{r SVMpoly, echo=FALSE, warning=FALSE}
 # tune.poly <- tune(svm, price_above ~ longitude
@@ -777,10 +790,12 @@ acc.poly <- 1 - sum(diag(conf.poly)/sum(conf.poly))
 ```
 
 ### Best Radial Kernel SVM
+
 * Misclass. Rate: 0.1785958
 * Cost Parameter: 8
 * Support Vectors: 3615
-Below is a plot of the decision boundary of a radial kernel SVM fit on `latitude` and `longitude`. Fitting a model with identical parameters as the previous two models, we obtain a cost parameter value of 8 through 10-fold cross validation. Our test misclassification rate is 0.1785958.
+
+Below is a plot of the decision boundary of a radial kernel SVM fit on `latitude` and `longitude`. Fitting a model with the same parameters as the previous two models, we obtain a cost parameter value of 8 through 10-fold cross validation. Our test misclassification rate is 0.1785958.
 
 ```{r SVMrad, echo=FALSE}
 # tune.rad <- tune(svm, price_above ~ longitude+latitude, data = train, kernel = "radial", ranges = list(cost = c(.001, .01, .1, 1, 5, 10, 100)))
@@ -808,7 +823,7 @@ acc.rad <- 1 - sum(diag(conf.rad)/sum(conf.rad))
 
 ## KNN
 
-Using cross validation to find k such that the misclassification rate is minimized, we find that k = 29 gives us the minimum misclassification rate of 0.1656442. In the plot below, accuracy is maximized at k = 29.
+Using cross validation to find K such that the misclassification rate is minimized, we find that k = 29 gives us the minimum misclassification rate of 0.1656442. In the plot below, accuracy is maximized at k = 29.
 
 ```{r KNN, echo = FALSE}
 set.seed(3)
@@ -876,11 +891,11 @@ proMSPE.Lasso <- mean((yTest - yPredLasso@x)^2)
 #proMSPE.Lasso
 ```
 
-The test MSE for ridge and lasso regression were both approximately 0.42. It makes sense that these models would have worse test MSE values than other models since both ridge and lasso were unable to run with the non-numeric predictors. When we compare with the previous results, we see that some of the non-numeric (such as room-type and neighborhood group) were very important in predicting in other models.
+The test MSE for ridge and lasso regression were both approximately 0.42. It is reasonable these models would have worse test MSE values than our other models since both  the ridge and lasso models did not contain non-numeric predictors. When we compare with the previous results, we see that some of the non-numeric variables (such as room-type and neighborhood group) were important in predicting in other models.
 
 # Conclusion
 
-There were many considerations to be taken into account when selecting our final model. First, we had to consider the accuracy of the model; if our test error rate was too high, there would be no reason for to implement a poorly-constructed model. Next was model complexity: we could use a model with multiple predictors and parameters, decreasing the error rate of our model, but increasing the variance, or we could contstruct a simpler model with more bias, but lower variability. Choosing a simpler model would allow us to use our model in a larger setting and achieve similar test error rates. We can compare the test error rates of our different models and determine a best model.
+There were many aspects to take into account when selecting our final model. First, we had to consider the accuracy of the model. If our test error rate was too high, there would be no reason for to implement a poorly-constructed model. Next was model complexity: we could use a model with multiple predictors and parameters, decreasing the error rate of our model, but increasing the variance, or we could contstruct a simpler model with more bias, but lower variability. Choosing a simpler model would allow us to use our model in a larger setting and achieve similar test error rates. We can compare the test error rates of our different models and determine a best model.
 
 ## Error Rates
 
@@ -908,6 +923,8 @@ kable(list(`MSPE` = mspe.tab, Misclassification  = misclass.tab),
       caption = 'Error Rates for Tree Models') %>% kable_styling(latex_options = "hold_position")
 ```
 
+\newpage
+
 ### SVM and KNN Error Rates
 
 ```{r svm_knn_tab, echo = F}
@@ -931,7 +948,7 @@ kable(reg.tab,
       caption = 'MSPE for Regularization Methods') %>% kable_styling(latex_options = "hold_position")
 ```
 
-## Final Models and Error
+## Final Models and Overall Dataset Error
 
 ### Regression
 
@@ -958,8 +975,8 @@ The final mean squared prediction error, `r final.ols.mspe`, of the model is sli
   * Being in the *Queens* neighbourhood group results in the price of the listing being `r (exp(.05742)-1)*100`% higher than a listing in the Bronx.  
   * Being in the *Stanten Island* neighbourhood group results in the price of the listing being `r (exp(-.6991)-1)*100`% lower than a listing in the Bronx.  
 * **Room Type**
-  * Being a *Private Room* results in the price of the listing being `r (exp(-.7491)-1)*100`% lower than whole apartment or house listing.  
-  * Being a *Shared Room* results in the price of the listing being `r (exp(-1.166)-1)*100`% lower than whole apartment or house listing.  
+  * Being a *Private Room* results in the price of the listing being `r (exp(-.7491)-1)*100`% lower than a *Whole Apartment or House* listing.  
+  * Being a *Shared Room* results in the price of the listing being `r (exp(-1.166)-1)*100`% lower than a *Whole Apartment or House* listing.  
 * **Calculated Host Listing Count**:  A one unit increase in longitude results in a `r (exp(.0005089)-1)*100`% decrease in the price of the listing.
 
 ### Classification
@@ -984,7 +1001,7 @@ log.tab <- table(Predicted = final.logit.pred,True = bnb$price_above)
 log.tab
 ```
 
-The logistic regression model ended up being the best choice for our classification model. As with the regression model, the misclassification error rate, `r final.logit.misclass`, was slightly higher than some of the more complex models, but we decided to choose the simpler model at a small penalty to misclassification rate. By searching for the best threshold, it seems setting $thresh > .5$ is the best choice. There seemed to be many more false positives than false negatives in our overall dataset predictions. As we can see from the confusion matrix of the logistic predictions, out False Postitive Rate was `r log.tab[2,1]/(log.tab[2,1] + log.tab[1,1])` and our False Negative Rate was `r log.tab[1,2]/(log.tab[2,2] + log.tab[1,2])`. 
+The logistic regression model ended up being the best choice for our classification model. As with the regression model, the misclassification error rate, `r final.logit.misclass`, was slightly higher than some of the more complex models, but we decided to choose the simpler model at a small penalty to misclassification rate. By searching for the best threshold, it seems `r best.thresh` is the best choice. There seemed to be many more false positives than false negatives in our overall dataset predictions. As we can see from the confusion matrix of the logistic predictions, our False Postitive Rate was `r log.tab[2,1]/(log.tab[2,1] + log.tab[1,1])` and our False Negative Rate was `r log.tab[1,2]/(log.tab[2,2] + log.tab[1,2])`. 
 
 We can interpret the most important coefficients as follows:
 
@@ -1005,7 +1022,7 @@ We can interpret the most important coefficients as follows:
 
 ### Future Research
 
-One possible research direction for this dataset would be to use Host Name to classify each host as either male or female (or a combination of the two). One could then explore whether the host's gender played a role in predicting the amount of business the listing got or even combine that with the price to make inferences on the difference in net income from listings between genders. 
+One of the limiations of our study was the computing power of our machines. Train-test splitting the entire dataset was not feasible because of the computing power and resulted in a train-test split of the subsetted data. This resulted in some of the more expensive methods such as Ensemble Tree methods, Support Vector Machines, and K-Nearest-Neighbours. One possible direction is to try and run some of the more expensive methods on a stronger machine, which could make some of the more complex ML methods more useful. Another possible direction for the dataset would be to using the Host Name to classify a host as male or female (or a combination of the two). One could use this data to explore whether the host's gender played a role in predicting the amount of business the listing receives. Gender could be combined with the price to make inferences on differences in net income from listings across different genders.
 
 # Appendix
 
