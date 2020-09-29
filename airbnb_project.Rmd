@@ -51,6 +51,10 @@ library(glmnet)
 library(faraway)
 library(ROCR)
 library(e1071)
+library(sf)
+library(ggmap)
+library(maps)
+library(mapdata)
 #library(train)
 ```
 
